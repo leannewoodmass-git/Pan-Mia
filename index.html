@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: dark;">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>Pan & Mia · Health Monitor</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #020817; color-scheme: dark; }
+    body { color: #F1F5F9; font-family: Georgia, serif; }
+    button { font-family: inherit; }
+
+    /* Prevent white flash before React mounts */
+    #root { background: #020817; min-height: 100vh; }
+
+    /* Scrollbars — Chrome/Safari */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0F172A; }
+    ::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+    /* Scrollbars — Firefox */
+    * { scrollbar-color: #1E293B #0F172A; scrollbar-width: thin; }
+
+    /* Text selection */
+    ::selection { background: #1D4ED8; color: #F8FAFC; }
+
+    /* Search input placeholder */
+    ::placeholder { color: #94A3B8; opacity: 1; }
+
+    /* Prevent browser autofill from flashing white */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+      -webkit-text-fill-color: #F1F5F9;
+      -webkit-box-shadow: 0 0 0 1000px #0F172A inset;
+      transition: background-color 5000s ease-in-out 0s;
+    }
+
+    /* Leaflet dark theme */
+    .leaflet-popup-content-wrapper { background: #0F172A !important; color: #F1F5F9 !important; border: 1px solid #1E293B !important; border-radius: 10px !important; box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important; }
+    .leaflet-popup-tip { background: #0F172A !important; }
+    .leaflet-popup-content { margin: 12px 16px !important; font-family: Georgia, serif; }
+    .leaflet-container { background: #020817; }
+    .leaflet-control-attribution { background: rgba(2,8,23,0.75) !important; color: #475569 !important; }
+    .leaflet-control-attribution a { color: #64748B !important; }
+    .leaflet-bar a { background: #0F172A !important; color: #94A3B8 !important; border-color: #1E293B !important; }
+    .leaflet-bar a:hover { background: #1E293B !important; color: #F1F5F9 !important; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo } = React;
+
+// ─── Data ────────────────────────────────────────────────────────────────────
+
+const panEvents = [
+  { date:"2023-03-01", label:"Mar 1, 2023",    cat:"Pan", type:"other",   title:"Owner Surrender — BARC Houston",  details:"Surrendered to BARC Animal Shelter & Adoptions, 3200 Carr St, Houston, TX (Animal ID: A1865518). Intake type: Owner surrender. Shelter name: Caro. Weight: 7.9 lbs, BCS 5/9. Subsequently transferred to Rescued Pets Movement (RPM), Houston, TX." },
+  { date:"2023-03-01", label:"Mar 1, 2023",    cat:"Pan", type:"vaccine", title:"Shelter Vaccines at BARC",        details:"FVRCP given. Rabies (Zoetis Nobivac3, 1yr) given — UTD until Mar 1, 2024. Tag #U23-362996, Serial 562891. Administered by Dr. Cherie Whittenberg DVM, License #6342, BARC Animal Shelter, Houston, TX." },
+  { date:"2023-03-02", label:"Mar 2, 2023",    cat:"Pan", type:"other",   title:"Neutered & Microchipped at BARC", details:"Scrotal neuter performed at BARC Houston. HomeAgain microchip 985113007213314 implanted. FeLV/FIV: Negative. Dewormed (Strongid 1.40cc + Praziquantel 0.09ml via RPM — Dr. Amanda Hanna). Nail trim. Post-neuter meds: Iverpyra, Advantix, Ketoprofen, Antisedan, KDT." },
+  { date:"2023-03-02", label:"Mar 2, 2023",    cat:"Pan", type:"labs",    title:"First Lab Baseline",             details:"Initial CBC & chemistry: RBC 8.7, HCT 33, WBC 7.1. FeLV/FIV: Negative (confirmed at BARC intake and Uniquely Cats)." },
+  { date:"2023-03-02", label:"Mar 2023",        cat:"Pan", type:"vaccine", title:"Vaccinations",                   details:"Rabies UTD until Mar 2024 (Zoetis Nobivac3, administered at BARC Houston Mar 1, 2023). Panleukopenia (FVRCP) UTD until Mar 2024." },
+  { date:"2023-03-02", label:"Mar 2023",        cat:"Pan", type:"finding", title:"Heart Murmur Detected",          details:"Grade 2/6 murmur noted." },
+  { date:"2023-03-09", label:"Mar 9, 2023",    cat:"Pan", type:"visit",   title:"RPM Follow-up",                  details:"Follow-up at Rescued Pets Movement (RPM), Houston, TX. No URI. Wood's Lamp test negative — fungal infection clear. Administered by Dr. Patricia Banks, RPM." },
+  { date:"2023-12-08", label:"Dec 8, 2023",     cat:"Pan", type:"labs",    title:"Labs & Urinalysis",              details:"CBC normal. USG 1060, UrpH 6.5, urine protein 1+, blood 3+, struvite 3+." },
+  { date:"2023-12-08", label:"Dec 2023",        cat:"Pan", type:"finding", title:"Urinary Issues & Bladder Stone", details:"Pollakiuria/stranguria ×1 week. Cystolith found. Surgery performed — stone disintegrated upon grasping. Murmur not heard." },
+  { date:"2024-01-01", label:"Jan 2024",        cat:"Pan", type:"finding", title:"Vomiting Episodes",              details:"Vomiting food/hairballs every 2–3 days for ~1 month. Suspected dietary cause." },
+  { date:"2024-02-17", label:"Feb 17, 2024",    cat:"Pan", type:"labs",    title:"Follow-up Labs",                 details:"RBC 8.7, HCT 33, WBC 7.1 — all normal." },
+  { date:"2024-02-29", label:"Feb 29, 2024",    cat:"Pan", type:"visit",   title:"New Patient Adult Visit",        details:"Chief concern: lower urinary signs ×3 months. Assessed: mild periodontal disease (Grade 1), slight overweight, mild ventral sac conjunctivitis (ddx Herpes), murmur not heard, vomiting resolved. Recommended bio-appropriate diet." },
+  { date:"2024-02-29", label:"Feb 29, 2024",    cat:"Pan", type:"labs",    title:"Comprehensive Labs",             details:"RBC 10.2, HCT 41, WBC 8.9 — all normal. SDMA 9, BUN 20, CRT 1.4. FeLV/FIV: Negative confirmed." },
+  { date:"2024-03-08", label:"Mar 8, 2024",     cat:"Pan", type:"labs",    title:"Panleukopenia Titer Result",     details:"Titer positive at 1:1024 — excellent immunity confirmed. Vaccination updated until Mar 2027." },
+  { date:"2024-03-08", label:"Mar 2024",        cat:"Pan", type:"finding", title:"Vet Lab Interpretation – Feb/Mar '24", details:"Red Cells: Robust red cell count, all related parameters normal.\n\nWhite Cells: Pan's WBC is 8.9K — excellent, with no correlation to systemic inflammation. Note: the lab's reference range of 4–19K is calculated from cats eating a pro-inflammatory diet and is considered badly biased upward. Uniquely Cats uses a preferred range of 2–10K, based on extensive experience with cats on biologically appropriate diets. All 5 white cell types are within reference ranges and in normal proportions to each other.\n\nBiochem: Excellent panel. Normal liver and kidney health and function, normal electrolytes, good blood sugar and cholesterol, normal serum proteins, healthy acid-base balance. Zero concerns." },
+  { date:"2024-03-15", label:"Mar 15, 2024",    cat:"Pan", type:"visit",   title:"Tech Appointment",               details:"Weight: 10.68 lbs. Cystocentesis urinalysis performed. Rabies vaccine (PureVax 1yr) given." },
+  { date:"2024-03-16", label:"Mar 16, 2024",    cat:"Pan", type:"labs",    title:"Post-diet Change UA",            details:"USG 1030, blood 0, struvite 0 — urinary abnormalities resolved. Labs excellent." },
+  { date:"2024-04-15", label:"Apr 15–23, 2024", cat:"Pan", type:"other",   title:"Boarding Stay",                  details:"Boarded at Uniquely Cats." },
+  { date:"2024-09-17", label:"Sep 17, 2024",    cat:"Pan", type:"visit",   title:"Problem Visit – Constipation",   details:"No defecation ×1 week. Mild decreased appetite when owners went out of town. X-ray: formed feces to distal ascending colon, no obstipation. Passed large stool in clinic. Resolved — attributed to insufficient water and travel stress." },
+  { date:"2025-03-07", label:"Mar 7, 2025",     cat:"Pan", type:"visit",   title:"Annual Adult Wellness",          details:"Weight 10.44 lbs, BCS 5/9, BAR. Dental: 0–1+ tartar/gingivitis. All systems WNL. New cat in household since December — immediately friends! Diet: raw Vital Essentials + treats. No concerns." },
+  { date:"2025-03-07", label:"Mar 7–8, 2025",   cat:"Pan", type:"labs",    title:"Annual Labs",                    details:"CBC: all normal. Chemistry: all normal (SDMA 10, BUN 25, CRT 1.5). UA: USG 1037, trace protein, no blood, no crystals. Rabies vaccine given — UTD until Mar 2026." },
+  { date:"2025-03-07", label:"Mar 7, 2025",     cat:"Pan", type:"vaccine", title:"Rabies Vaccine",                  details:"Rabies (1yr). UTD until Mar 7, 2026. Administered by Dr. Weronika Gajowniczek, CO State License #0011777." },
+  { date:"2025-03-13", label:"Mar 13, 2025",    cat:"Pan", type:"finding", title:"Vet Lab Interpretation – Mar '25", details:"CBC: All red cell parameters normal. WBC 7.9K — within the ideal 2–10K range, not indicative of systemic inflammation. Insignificantly lower than last year but well within his normal. All 5 white cell types within reference ranges and in healthy proportion to each other.\n\nBiochem: Great results. Healthy liver and kidney parameters, electrolytes, glucose, cholesterol, and acid-base balance. No significant trends.\n\nUA: All systemic parameters normal. USG at the high end of ideal. Trace protein on screening — not concerning; commonly seen with more concentrated urine. If Pan had his normal breakfast before the appointment, recommend adding a bit more water to his meals. If he was fasted or ate only part of his usual, the concentration is expected. No blood, crystals, or bacteria." },
+  { date:"2024-03-20", label:"Mar 20, 2024",    cat:"Pan", type:"finding", title:"Urinalysis Follow-up – Mar '24",   details:"Pan's urinalysis results are excellent — a significant improvement from his history of highly concentrated urine with blood and struvite crystals. His urine concentration is now in the perfect 'Goldilocks range': not too dilute and not too concentrated, right in the middle. This is exactly the kind of urine chemistry the lower urinary tract thrives on, and sure enough there is no evidence of any inflammation or irritation. No crystals present. All non-urinary parameters (such as urine glucose) are normal as well." },
+  { date:"2025-06-02", label:"Jun 2, 2025",     cat:"Pan", type:"vaccine", title:"Panleukopenia / FVRCP Vaccine",   details:"FVRCP vaccine given. UTD until Jun 2, 2026. Administered by Dr. Kelsey Hughson, Banfield Hospital Broomfield." },
+  { date:"2025-04-25", label:"Apr 25, 2025",    cat:"Pan", type:"other",   title:"Travel Inquiry – Thailand",      details:"Owner requested vaccine recs for travel to Thailand. International health certificate declined per clinic policy — only issued through insured/bonded travel professionals." },
+  { date:"2025-06-10", label:"Jun 10, 2025",    cat:"Pan", type:"other",   title:"Arrived Thailand ✈️",             details:"Arrived Bangkok, Thailand via flight AZ201/C2765 through Suvarnabhumi Airport (BKK). Thailand Department of Livestock Development import permit 0651600169/000167 issued Apr 30, 2025. Microchip: 985113007213314." },
+  { date:"2026-01-05", label:"Jan 5, 2026",     cat:"Pan", type:"other",   title:"Relocated to Thailand",          details:"Owner moved to Thailand. Records and recommendations requested and sent." },
+  { date:"2026-01-29", label:"Jan 29, 2026",    cat:"Pan", type:"vaccine", title:"FeLV Vaccine – 1st Dose",         details:"PureVax FeLV 0.5ml, Lot H27541. 1st dose in primary series. Booster due Feb 26, 2026. Annual due Mar 2, 2027. Administered by Dr. Watanya Sukkasem." },
+  { date:"2026-03-02", label:"Mar 2, 2026",     cat:"Pan", type:"vaccine", title:"FeLV Vaccine – Booster (2nd Dose)", details:"PureVax FeLV 0.5ml. Booster in primary series. Annual due Mar 2, 2027. Administered by Dr. Watanya Sukkasem." },
+  { date:"2026-03-16", label:"Mar 16, 2026",   cat:"Pan", type:"visit",   title:"Annual Wellness Visit – Chiang Mai", details:"Full annual wellness exam at Chiang Mai Center Animal Hospital (CNX). CBC and Chemistry 17 complete — see lab results. Urinalysis pending. All three vaccines administered. Next wellness due Mar 2027." },
+  { date:"2026-03-16", label:"Mar 16, 2026",   cat:"Pan", type:"vaccine", title:"Annual Vaccinations – Mar 2026",   details:"FVRCP (PureVox Feline 4) · Lot 64418A · Exp 24 Sep 2026 · Next revax Mar 2, 2027.\nPureVax FeLV · Lot H27541 · Exp 25 Mar 2027 · Next revax Mar 2, 2027.\nRabies (Rabisin) · Lot H05535 · Exp 07 Oct 2027 · Next revax Mar 2, 2027." },
+  { date:"2026-03-16", label:"Mar 16, 2026",   cat:"Pan", type:"labs",    title:"CBC & Chemistry 17",   details:"CBC (ProCyte Dx) — RBC 9.65 · HCT 42.1% · HGB 13.8 · WBC 9.37 · NEU 3.40 · LYM 4.92 · PLT 42 ⚠️ LOW (ref 151–600) · PCT 0.07% ⚠️ LOW\nChemistry (Catalyst One) — SDMA 14 (upper limit, ref 0–14) · GLU 89 · CREA 1.8 · BUN 20 · PHOS 4.2 · CA 8.2 · TP 7.8 · ALB 3.0 · GLOB 4.8 · ALT 60 · ALKP 34 · CHOL 177 · AMYL 573 · LIPA 677\nAll chemistry values within normal range. PLT and PCT low — monitor." },
+  { date:"2027-02-01", label:"Before Mar 2027 Vaccines", cat:"Pan", type:"other", title:"📋 Reminder: Request Titer Testing Before Revaccination", details:"Before proceeding with the scheduled Mar 2027 FVRCP and FeLV boosters, ask CNX about titer testing (antibody serology) to check whether Pan still has sufficient immunity from previous vaccines. If titers are protective, revaccination can be deferred — reducing unnecessary antigen load. Pan's panleukopenia titer in Boulder (Mar 2024) was 1:1024, confirming excellent immunity. Also worth discussing: rabies titer (FAVN test) if travel to a rabies-free country (Australia, NZ, Japan, UK) is ever a possibility — the post-vaccination waiting period clock started Mar 2026." },
+];
+
+const miaEvents = [
+  { date:"2024-11-30", label:"Nov 30, 2024",    cat:"Mia", type:"other",   title:"Spayed",                           details:"Spayed Nov 30, 2024 prior to adoption from HSBV." },
+  { date:"2024-11-17", label:"Nov 17, 2024",    cat:"Mia", type:"vaccine", title:"TX Shelter Vaccines",             details:"Rabies (Pfizer Defensor 1, 1yr, Lot #717316, UTD until Nov 17, 2025) + FVRCP given at TX shelter. Transferred history recorded by HSBV. Administered by Dr. Erin O'Toole, License #6950." },
+  { date:"2024-11-20", label:"Nov 20, 2024",    cat:"Mia", type:"other",   title:"TX Shelter Deworming & FeLV/FIV", details:"Strongid deworming given at TX shelter (Nov 20, 2024). FeLV/FIV tested negative at TX shelter. Records transferred to HSBV Nov 26, 2024." },
+  { date:"2024-12-08", label:"Dec 8, 2024",     cat:"Mia", type:"vaccine", title:"Panleukopenia / FVRCP Vaccine",   details:"FVRCP (TruFel HCP, Elanco Animal Health, Modified Live) given subcutaneously — front right leg/paw. UTD until Dec 3, 2025. Booster due Dec 25, 2024 (17-day series). Administered by Kerry Meyer, CVT, Humane Society of Boulder Valley." },
+  { date:"2024-12-08", label:"Dec 8, 2024",     cat:"Mia", type:"other",   title:"Deworming at HSBV",              details:"Strongid liquid oral 0.70cc given orally on adoption day. Booster due Dec 25, 2024. Administered by Kerry Meyer, CVT, Humane Society of Boulder Valley." },
+  { date:"2024-12-08", label:"Dec 8, 2024",     cat:"Mia", type:"other",   title:"Adopted from HSBV",              details:"Adopted by Woodmass family from Humane Society of Boulder Valley (HSBV). Shelter name: Gigi. Animal ID: A0057347107. Transferred from Texas. Weight at adoption: 7.00 lbs. Immediately bonded with resident cat Pan." },
+  { date:"2024-12-18", label:"Dec 18, 2024",    cat:"Mia", type:"visit",   title:"New Patient Well Visit",         details:"Weight 7.08 lbs, BCS 5/9, HR 184, BAR. Mild brown ear exudate bilaterally (otic exam normal). All other systems WNL. Vomiting ~3× in 5 days — attributed to cat grass/diet transition, resolved." },
+  { date:"2024-12-18", label:"Dec 18, 2024",    cat:"Mia", type:"labs",    title:"In-House Retroviral Test",       details:"FeLV/FIV: Negative (confirmed, recommended due to other cat at home). Owner declined full bloodwork — to be done at confirmatory test." },
+  { date:"2024-12-18", label:"Dec 18, 2024",    cat:"Mia", type:"finding", title:"Initial Assessment",             details:"Diet bio-appropriate. Preliminary negative retroviral status. Full adult labs indicated. Vaccination contraindicated at this time. Rec removing cat grass." },
+  { date:"2025-04-25", label:"Apr 25, 2025",    cat:"Mia", type:"other",   title:"Travel Inquiry – Thailand",      details:"Owner requested vaccine recs for travel to Thailand. International health certificate declined per clinic policy." },
+  { date:"2025-05-07", label:"May 7, 2025",     cat:"Mia", type:"visit",   title:"Tech Diagnostic Appointment",    details:"Weight 9.08 lbs (gained ~2 lbs since Dec). Pretreated with gabapentin 100mg. FeLV/FIV: Negative confirmed. CBC, chemistry, cystocentesis UA performed." },
+  { date:"2025-05-08", label:"May 7–8, 2025",   cat:"Mia", type:"labs",    title:"Comprehensive Lab Results",      details:"CBC: Hemoglobin mildly elevated at 17.1 (ref: 10.3–16.2); low NLR 0.7. Chemistry: SDMA mildly elevated at 18 (ref: <14), all other values normal. UA: USG 1045 (elevated), urine protein 1+ — likely pre-renal/fasted sample. Cystatin B normal. Overall labs good with noted exceptions." },
+  { date:"2025-05-08", label:"May 2025",        cat:"Mia", type:"finding", title:"Lab Findings & Plan",            details:"Mild elevated Hgb (ddx artifact, cardiac, respiratory). Mild elevated SDMA (ddx artifact, pre-renal, renal). Elevated USG + urine protein — fasted sample likely explanation. Rec increase water in food (1:1 ratio). Follow-up adult well Nov 2025." },
+  { date:"2025-05-14", label:"May 14, 2025",    cat:"Mia", type:"finding", title:"Vet Lab Interpretation – May '25", details:"CBC: RBC, HCT, and HGB are at the upper end / slightly above range. Most likely altitude compensation (Chiang Mai elevation) — common in young, active cats; the same reason athletes train at altitude. WBC 8.1K, all 5 differential counts within range. NLR 0.7 (inverse NEU:LYM proportion) — normal for young cats still building long-term immunity. No concerns unless symptoms such as exercise intolerance develop.\n\nBiochem: Good liver and kidney health, normal electrolytes, protein levels, cholesterol, glucose, and acid-base balance.\n\nUA: All systemic parameters normal. USG 1045 — highly concentrated urine. If fasted prior to visit, no concern. If not fasted, recommend increasing water added to food toward a 1:1 food-to-water ratio. Low-level urine protein present, likely due to high concentration — no crystals, no blood, no bacteria." },
+  { date:"2025-06-10", label:"Jun 10, 2025",    cat:"Mia", type:"other",   title:"Arrived Thailand ✈️",             details:"Arrived Bangkok, Thailand via flight AZ201/C2765 through Suvarnabhumi Airport (BKK). Thailand Department of Livestock Development import permit 0651600169/000167 issued Apr 30, 2025. Microchip: 941010002339944." },
+  { date:"2026-01-05", label:"Jan 5, 2026",     cat:"Mia", type:"other",   title:"Relocated to Thailand",          details:"Owner moved to Thailand. Records and recommendations requested and sent." },
+  { date:"2026-01-29", label:"Jan 29, 2026",    cat:"Mia", type:"vaccine", title:"FeLV Vaccine – 1st Dose",         details:"PureVax FeLV 0.5ml ×2 stickers, Lot H27541. 1st dose in primary series. Booster due Feb 26, 2026. Annual due Mar 2, 2027. Administered by Dr. Watanya Sukkasem." },
+  { date:"2026-03-02", label:"Mar 2, 2026",     cat:"Mia", type:"vaccine", title:"FeLV Vaccine – Booster (2nd Dose)", details:"PureVax FeLV 0.5ml. Booster in primary series. Annual due Mar 2, 2027. Administered by Dr. Watanya Sukkasem." },
+  { date:"2026-03-16", label:"Mar 16, 2026",   cat:"Mia", type:"visit",   title:"Annual Wellness Visit – Chiang Mai", details:"Full annual wellness exam at Chiang Mai Center Animal Hospital (CNX). CBC and Chemistry 17 complete — see lab results. Urinalysis pending. All three vaccines administered. Next wellness due Mar 2027." },
+  { date:"2026-03-16", label:"Mar 16, 2026",   cat:"Mia", type:"vaccine", title:"Annual Vaccinations – Mar 2026",   details:"FVRCP (PureVox Feline 4) · Lot 64418A · Exp 24 Sep 2026 · Next revax Mar 2, 2027.\nPureVax FeLV · Lot H27541 · Exp 25 Mar 2027 · Next revax Mar 2, 2027.\nRabies (Rabisin) · Lot H05535 · Exp 07 Oct 2027 · Next revax Mar 2, 2027." },
+  { date:"2026-03-16", label:"Mar 16, 2026",   cat:"Mia", type:"labs",    title:"CBC & Chemistry 17",   details:"CBC (ProCyte Dx) — RBC 9.41 · HCT 42.7% · HGB 14.5 · WBC 9.48 · NEU 3.58 · LYM 5.40 · PLT 103 ⚠️ LOW (ref 151–600) · PCT 0.13% ⚠️ LOW\nChemistry (Catalyst One) — SDMA 17 ⚠️ HIGH (ref 0–14) · GLU 77 · CREA 1.8 · BUN 30 · PHOS 5.9 · CA 9.1 · TP 7.6 · ALB 3.1 · GLOB 4.4 · ALT 23 · ALKP 26 · CHOL 159 · AMYL 845 · LIPA 961\nSDMA elevated — CREA within range; likely impaired GFR and kidney function. Evaluate complete urinalysis. PLT and PCT low — monitor." },
+  { date:"2027-02-01", label:"Before Mar 2027 Vaccines", cat:"Mia", type:"other", title:"📋 Reminder: Request Titer Testing Before Revaccination", details:"Before proceeding with the scheduled Mar 2027 FVRCP and FeLV boosters, ask CNX about titer testing (antibody serology) to check whether Mia still has sufficient immunity from previous vaccines. If titers are protective, revaccination can be deferred — particularly relevant given Mia's elevated SDMA trend, as reducing unnecessary immune challenges is sensible. Also worth discussing: rabies titer (FAVN test) if travel to a rabies-free country (Australia, NZ, Japan, UK) is ever a possibility — the post-vaccination waiting period clock started Mar 2026." },
+];
+
+// ─── Lab Data ─────────────────────────────────────────────────────────────────
+
+const labData = {
+  Pan: {
+    cbc: [
+      { test:"RBC",      unit:"M/µL",  ref:[6.54,12.20], points:[{date:"2023-03-02",val:8.7},{date:"2024-02-17",val:8.7},{date:"2024-02-29",val:10.2},{date:"2025-03-07",val:8.71},{date:"2026-03-16",val:9.65}] },
+      { test:"HCT",      unit:"%",     ref:[30.3,52.3],  points:[{date:"2023-03-02",val:33},{date:"2024-02-17",val:33},{date:"2024-02-29",val:41},{date:"2025-03-07",val:36.3},{date:"2026-03-16",val:42.1}] },
+      { test:"HGB",      unit:"g/dL",  ref:[9.8,16.2],   points:[{date:"2023-03-02",val:12.4},{date:"2024-02-29",val:13.8},{date:"2025-03-07",val:12.3},{date:"2026-03-16",val:13.8}] },
+      { test:"MCV",      unit:"fL",    ref:[35.9,53.1],  points:[{date:"2025-03-07",val:42},{date:"2026-03-16",val:43.6}] },
+      { test:"MCH",      unit:"pg",    ref:[11.8,17.3],  points:[{date:"2025-03-07",val:14.1},{date:"2026-03-16",val:14.3}] },
+      { test:"MCHC",     unit:"g/dL",  ref:[28.1,35.8],  points:[{date:"2025-03-07",val:33.9},{date:"2026-03-16",val:32.8}] },
+      { test:"WBC",      unit:"K/µL",  ref:[2.87,17.02], points:[{date:"2023-03-02",val:7.1},{date:"2024-02-17",val:7.1},{date:"2024-02-29",val:8.9},{date:"2025-03-07",val:7.9},{date:"2026-03-16",val:9.37}] },
+      { test:"NEU",      unit:"K/µL",  ref:[2.30,10.29], points:[{date:"2023-03-02",val:3.31},{date:"2024-02-29",val:4.895},{date:"2025-03-07",val:3.452},{date:"2026-03-16",val:3.40}] },
+      { test:"LYM",      unit:"K/µL",  ref:[0.92,6.88],  points:[{date:"2023-03-02",val:3.01},{date:"2024-02-29",val:2.581},{date:"2025-03-07",val:3.816},{date:"2026-03-16",val:4.92}] },
+      { test:"MONO",     unit:"K/µL",  ref:[0.05,0.67],  points:[{date:"2023-03-02",val:0.08},{date:"2024-02-29",val:0.356},{date:"2025-03-07",val:0.261},{date:"2026-03-16",val:0.31}] },
+      { test:"EOS",      unit:"K/µL",  ref:[0.17,1.57],  points:[{date:"2023-03-02",val:0.66},{date:"2024-02-29",val:1.068},{date:"2025-03-07",val:0.363},{date:"2026-03-16",val:0.69}] },
+      { test:"BASO",     unit:"K/µL",  ref:[0,0.1],      points:[{date:"2025-03-07",val:0.008}] },
+      { test:"NLR",      unit:"",      ref:[0.5,4.0],    points:[{date:"2023-03-02",val:1.1},{date:"2024-02-29",val:1.9},{date:"2025-03-07",val:0.9},{date:"2026-03-16",val:0.69}] },
+      { test:"PLT",      unit:"K/µL",  ref:[151,600],    points:[{date:"2025-03-07",val:98},{date:"2026-03-16",val:42}] },
+      { test:"MPV",      unit:"fL",    ref:[11.4,21.6],  points:[{date:"2026-03-16",val:17.5}] },
+      { test:"PCT",      unit:"%",     ref:[0.17,0.86],  points:[{date:"2026-03-16",val:0.07}] },
+      { test:"RETIC-HGB",unit:"pg",    ref:[15.3,22.9],  points:[{date:"2025-03-07",val:13.7}] },
+    ],
+    chem: [
+      { test:"SDMA", unit:"µg/dL", ref:[0,14],     points:[{date:"2024-02-29",val:9},{date:"2025-03-07",val:10},{date:"2026-03-16",val:14}] },
+      { test:"GLU",  unit:"mg/dL", ref:[72,175],   points:[{date:"2025-03-07",val:87},{date:"2026-03-16",val:89}] },
+      { test:"CREA", unit:"mg/dL", ref:[0.8,2.4],  points:[{date:"2023-03-02",val:1.4},{date:"2024-02-29",val:1.4},{date:"2025-03-07",val:1.5},{date:"2026-03-16",val:1.8}] },
+      { test:"BUN",  unit:"mg/dL", ref:[16,37],    points:[{date:"2023-03-02",val:23},{date:"2024-02-29",val:20},{date:"2025-03-07",val:25},{date:"2026-03-16",val:20}] },
+      { test:"PHOS", unit:"mg/dL", ref:[2.9,7.5],  points:[{date:"2024-02-29",val:3.5},{date:"2025-03-07",val:3.8},{date:"2026-03-16",val:4.2}] },
+      { test:"CA",   unit:"mg/dL", ref:[7.8,11.3], points:[{date:"2025-03-07",val:9.3},{date:"2026-03-16",val:8.2}] },
+      { test:"Na",   unit:"mmol/L",ref:[147,157],  points:[{date:"2025-03-07",val:153}] },
+      { test:"K",    unit:"mmol/L",ref:[3.7,5.2],  points:[{date:"2024-02-29",val:4.2},{date:"2025-03-07",val:4.2}] },
+      { test:"Cl",   unit:"mmol/L",ref:[114,126],  points:[{date:"2025-03-07",val:120}] },
+      { test:"TCO2", unit:"mmol/L",ref:[12,22],    points:[{date:"2025-03-07",val:20}] },
+      { test:"TP",   unit:"g/dL",  ref:[5.7,8.9],  points:[{date:"2023-03-02",val:7.2},{date:"2024-02-29",val:7.4},{date:"2025-03-07",val:7.1},{date:"2026-03-16",val:7.8}] },
+      { test:"ALB",  unit:"g/dL",  ref:[2.2,4.0],  points:[{date:"2024-02-29",val:3.4},{date:"2025-03-07",val:3.3},{date:"2026-03-16",val:3.0}] },
+      { test:"GLOB", unit:"g/dL",  ref:[2.8,5.9],  points:[{date:"2024-02-29",val:4.0},{date:"2025-03-07",val:3.8},{date:"2026-03-16",val:4.8}] },
+      { test:"ALT",  unit:"U/L",   ref:[12,158],   points:[{date:"2025-03-07",val:43},{date:"2026-03-16",val:60}] },
+      { test:"AST",  unit:"U/L",   ref:[16,67],    points:[{date:"2025-03-07",val:30}] },
+      { test:"ALKP", unit:"U/L",   ref:[12,111],   points:[{date:"2025-03-07",val:23},{date:"2026-03-16",val:34}] },
+      { test:"GGT",  unit:"U/L",   ref:[0,6],      points:[{date:"2026-03-16",val:0}] },
+      { test:"TBIL", unit:"mg/dL", ref:[0.0,0.9],  points:[{date:"2025-03-07",val:0.1},{date:"2026-03-16",val:0.05}] },
+      { test:"CHOL", unit:"mg/dL", ref:[65,305],   points:[{date:"2025-03-07",val:260},{date:"2026-03-16",val:177}] },
+      { test:"AMYL", unit:"U/L",   ref:[500,1500], points:[{date:"2025-03-07",val:832},{date:"2026-03-16",val:573}] },
+      { test:"LIPA", unit:"U/L",   ref:[100,1400], points:[{date:"2026-03-16",val:677}] },
+      { test:"CK",   unit:"U/L",   ref:[64,440],   points:[{date:"2025-03-07",val:96}] },
+    ],
+    ua: [
+      { test:"USG",  unit:"",      ref:[1020,1060], points:[{date:"2023-12-08",val:1060},{date:"2024-03-15",val:1030},{date:"2025-03-07",val:1037}] },
+      { test:"UrpH", unit:"",      ref:[6.0,7.5],   points:[{date:"2023-12-08",val:6.5},{date:"2024-03-15",val:7.0},{date:"2025-03-07",val:6.5}] },
+    ],
+  },
+  Mia: {
+    cbc: [
+      { test:"RBC",      unit:"M/µL",  ref:[6.54,12.20], points:[{date:"2025-05-07",val:11.01},{date:"2026-03-16",val:9.41}] },
+      { test:"HCT",      unit:"%",     ref:[30.3,52.3],  points:[{date:"2025-05-07",val:50.3},{date:"2026-03-16",val:42.7}] },
+      { test:"HGB",      unit:"g/dL",  ref:[9.8,16.2],   points:[{date:"2025-05-07",val:17.1},{date:"2026-03-16",val:14.5}] },
+      { test:"MCV",      unit:"fL",    ref:[35.9,53.1],  points:[{date:"2025-05-07",val:46},{date:"2026-03-16",val:45.4}] },
+      { test:"MCH",      unit:"pg",    ref:[11.8,17.3],  points:[{date:"2025-05-07",val:15.5},{date:"2026-03-16",val:15.4}] },
+      { test:"MCHC",     unit:"g/dL",  ref:[28.1,35.8],  points:[{date:"2025-05-07",val:34.0},{date:"2026-03-16",val:34.0}] },
+      { test:"WBC",      unit:"K/µL",  ref:[2.87,17.02], points:[{date:"2025-05-07",val:8.1},{date:"2026-03-16",val:9.48}] },
+      { test:"NEU",      unit:"K/µL",  ref:[2.30,10.29], points:[{date:"2025-05-07",val:3.094},{date:"2026-03-16",val:3.58}] },
+      { test:"LYM",      unit:"K/µL",  ref:[0.92,6.88],  points:[{date:"2025-05-07",val:4.528},{date:"2026-03-16",val:5.40}] },
+      { test:"MONO",     unit:"K/µL",  ref:[0.05,0.67],  points:[{date:"2025-05-07",val:0.138},{date:"2026-03-16",val:0.17}] },
+      { test:"EOS",      unit:"K/µL",  ref:[0.17,1.57],  points:[{date:"2025-05-07",val:0.324},{date:"2026-03-16",val:0.29}] },
+      { test:"BASO",     unit:"K/µL",  ref:[0,0.1],      points:[{date:"2025-05-07",val:0.016}] },
+      { test:"NLR",      unit:"",      ref:[1.0,3.5],    points:[{date:"2025-05-07",val:0.7},{date:"2026-03-16",val:0.66}] },
+      { test:"PLT",      unit:"K/µL",  ref:[151,600],    points:[{date:"2025-05-07",val:495},{date:"2026-03-16",val:103}] },
+      { test:"MPV",      unit:"fL",    ref:[11.4,21.6],  points:[{date:"2026-03-16",val:13.0}] },
+      { test:"PCT",      unit:"%",     ref:[0.17,0.86],  points:[{date:"2026-03-16",val:0.13}] },
+      { test:"RETIC-HGB",unit:"pg",    ref:[15.3,22.9],  points:[{date:"2025-05-07",val:16.5}] },
+    ],
+    chem: [
+      { test:"SDMA", unit:"µg/dL", ref:[0,14],     points:[{date:"2025-05-07",val:18},{date:"2026-03-16",val:17}] },
+      { test:"GLU",  unit:"mg/dL", ref:[72,175],   points:[{date:"2025-05-07",val:89},{date:"2026-03-16",val:77}] },
+      { test:"CREA", unit:"mg/dL", ref:[0.8,2.4],  points:[{date:"2025-05-07",val:1.8},{date:"2026-03-16",val:1.8}] },
+      { test:"BUN",  unit:"mg/dL", ref:[16,37],    points:[{date:"2025-05-07",val:27},{date:"2026-03-16",val:30}] },
+      { test:"PHOS", unit:"mg/dL", ref:[2.9,7.5],  points:[{date:"2025-05-07",val:5.9},{date:"2026-03-16",val:5.9}] },
+      { test:"CA",   unit:"mg/dL", ref:[7.8,11.3], points:[{date:"2025-05-07",val:10.6},{date:"2026-03-16",val:9.1}] },
+      { test:"Na",   unit:"mmol/L",ref:[147,157],  points:[{date:"2025-05-07",val:154}] },
+      { test:"K",    unit:"mmol/L",ref:[3.7,5.2],  points:[{date:"2025-05-07",val:4.8}] },
+      { test:"Cl",   unit:"mmol/L",ref:[114,126],  points:[{date:"2025-05-07",val:117}] },
+      { test:"TCO2", unit:"mmol/L",ref:[12,22],    points:[{date:"2025-05-07",val:18}] },
+      { test:"TP",   unit:"g/dL",  ref:[5.7,8.9],  points:[{date:"2025-05-07",val:7.5},{date:"2026-03-16",val:7.6}] },
+      { test:"ALB",  unit:"g/dL",  ref:[2.2,4.0],  points:[{date:"2025-05-07",val:4.1},{date:"2026-03-16",val:3.1}] },
+      { test:"GLOB", unit:"g/dL",  ref:[2.8,5.9],  points:[{date:"2025-05-07",val:3.4},{date:"2026-03-16",val:4.4}] },
+      { test:"ALT",  unit:"U/L",   ref:[12,158],   points:[{date:"2025-05-07",val:32},{date:"2026-03-16",val:23}] },
+      { test:"AST",  unit:"U/L",   ref:[16,67],    points:[{date:"2025-05-07",val:21}] },
+      { test:"ALKP", unit:"U/L",   ref:[12,111],   points:[{date:"2025-05-07",val:55},{date:"2026-03-16",val:26}] },
+      { test:"GGT",  unit:"U/L",   ref:[0,6],      points:[{date:"2025-05-07",val:0},{date:"2026-03-16",val:0}] },
+      { test:"TBIL", unit:"mg/dL", ref:[0.0,0.9],  points:[{date:"2025-05-07",val:0.2},{date:"2026-03-16",val:0.05}] },
+      { test:"CHOL", unit:"mg/dL", ref:[65,305],   points:[{date:"2025-05-07",val:192},{date:"2026-03-16",val:159}] },
+      { test:"AMYL", unit:"U/L",   ref:[500,1500], points:[{date:"2025-05-07",val:1157},{date:"2026-03-16",val:845}] },
+      { test:"LIPA", unit:"U/L",   ref:[100,1400], points:[{date:"2026-03-16",val:961}] },
+      { test:"CK",   unit:"U/L",   ref:[64,440],   points:[{date:"2025-05-07",val:163}] },
+    ],
+    ua: [
+      { test:"USG",  unit:"",      ref:[1020,1060], points:[{date:"2025-05-07",val:1045}] },
+      { test:"UrpH", unit:"",      ref:[6.0,7.5],   points:[{date:"2025-05-07",val:6.5}] },
+    ],
+  },
+};
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+const typeConfig = {
+  visit:   { color: "#3B82F6", label: "Visit",   icon: "🏥" },
+  labs:    { color: "#10B981", label: "Labs",    icon: "🧪" },
+  vaccine: { color: "#8B5CF6", label: "Vaccine", icon: "💉" },
+  finding: { color: "#F59E0B", label: "Finding", icon: "🔍" },
+  other:   { color: "#6B7280", label: "Other",   icon: "📋" },
+};
+
+const catConfig = {
+  Pan: {
+    color: "#60A5FA", emoji: "🐱", photo: "./Pan.jpg", photo2: "./Pan2.jpg",
+    dob: "20 Mar 2021", sex: "Male", breed: "DSH", coat: "Grey Tabby",
+    microchip: "985113007213314", neutered: "2 Mar 2023",
+  },
+  Mia: {
+    color: "#F472B6", emoji: "🐾", photo: "./Mia.jpg", photo2: "./Mia2.jpg",
+    dob: "14 Apr 2024", sex: "Female", breed: "DSH", coat: "Brown/White Tabby",
+    microchip: "941010002339944", spayed: "30 Nov 2024",
+  },
+};
+
+const upcomingCare = [
+  { cat: "Pan", item: "CBC & Chem 17 results — pending",         due: "Collected Mar 16, 2026", urgent: true,  dueDate: "2026-03-20" },
+  { cat: "Pan", item: "Annual wellness visit",                   due: "Mar 2, 2027",            urgent: false, dueDate: "2027-03-02" },
+  { cat: "Pan", item: "Rabies (Rabisin) annual",                 due: "Mar 2, 2027",            urgent: false, dueDate: "2027-03-02" },
+  { cat: "Pan", item: "FVRCP annual",                            due: "Mar 2, 2027",            urgent: false, dueDate: "2027-03-02" },
+  { cat: "Pan", item: "FeLV annual",                             due: "Mar 2, 2027",            urgent: false, dueDate: "2027-03-02" },
+  { cat: "Mia", item: "CBC & Chem 17 results — pending",         due: "Collected Mar 16, 2026", urgent: true,  dueDate: "2026-03-20" },
+  { cat: "Mia", item: "SDMA & Hgb re-check",                     due: "Follow-up with results", urgent: false, dueDate: "2026-06-01" },
+  { cat: "Mia", item: "Annual wellness + full labs",             due: "Mar 2, 2027",            urgent: false, dueDate: "2027-03-02" },
+  { cat: "Mia", item: "Rabies (Rabisin) annual",                 due: "Mar 2, 2027",            urgent: false, dueDate: "2027-03-02" },
+  { cat: "Mia", item: "FVRCP annual",                            due: "Mar 2, 2027",            urgent: false, dueDate: "2027-03-02" },
+  { cat: "Mia", item: "FeLV annual",                             due: "Mar 2, 2027",            urgent: false, dueDate: "2027-03-02" },
+];
+
+const weightHistory = {
+  Pan: [{ date:"Feb 2024", lbs:10.68 }, { date:"Mar 2024", lbs:10.68 }, { date:"Mar 2025", lbs:10.44 }, { date:"Mar 2026", lbs:10.8 }, { date:"Mar 2026", lbs:10.58 }],
+  Mia: [{ date:"Dec 2024", lbs:7.08  }, { date:"May 2025", lbs:9.08  }, { date:"Mar 2026", lbs:9.3  }, { date:"Mar 2026", lbs:8.82 }],
+};
+
+// ─── Shared helpers ───────────────────────────────────────────────────────────
+
+function Badge({ color, children }) {
+  return (
+    <span style={{
+      background: color + "22", color, fontSize: "11px", fontWeight: 700,
+      padding: "2px 8px", borderRadius: "4px", letterSpacing: "0.04em",
+      textTransform: "uppercase", flexShrink: 0,
+    }}>{children}</span>
+  );
+}
+
+// ─── CatPhoto ────────────────────────────────────────────────────────────────
+
+function CatPhoto({ name, size = 88 }) {
+  const cfg = catConfig[name];
+  const [err, setErr] = useState(false);
+  return err ? (
+    <div style={{
+      width: size, height: size, borderRadius: "50%",
+      background: cfg.color + "22", border: `2px solid ${cfg.color}44`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: size * 0.45, flexShrink: 0,
+    }}>{cfg.emoji}</div>
+  ) : (
+    <img
+      src={cfg.photo}
+      alt={name}
+      onError={() => setErr(true)}
+      style={{
+        width: size, height: size, borderRadius: "50%", objectFit: "cover",
+        border: `3px solid ${cfg.color}66`, flexShrink: 0,
+      }}
+    />
+  );
+}
+
+// ─── TimelineEvent ────────────────────────────────────────────────────────────
+
+function TimelineEvent({ event, isLast }) {
+  const [expanded, setExpanded] = useState(false);
+  const type = typeConfig[event.type];
+  const cfg  = catConfig[event.cat];
+
+  return (
+    <div style={{ display: "flex", gap: "14px", marginBottom: isLast ? 0 : "4px" }}>
+      {/* Spine dot */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "38px", flexShrink: 0 }}>
+        <div
+          onClick={() => setExpanded(!expanded)}
+          title={type.label}
+          style={{
+            width: "36px", height: "36px", borderRadius: "50%",
+            background: type.color, display: "flex", alignItems: "center",
+            justifyContent: "center", fontSize: "16px", cursor: "pointer",
+            boxShadow: `0 0 0 3px ${type.color}33`, transition: "transform 0.15s",
+          }}
+          onMouseEnter={e => e.currentTarget.style.transform = "scale(1.15)"}
+          onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+        >{type.icon}</div>
+        {!isLast && <div style={{ width: "2px", flexGrow: 1, background: "#1E293B", marginTop: "4px" }} />}
+      </div>
+
+      {/* Card */}
+      <div style={{ paddingBottom: isLast ? 0 : "18px", flex: 1, minWidth: 0 }}>
+        <div
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            background: "#0F172A", border: "1px solid #1E293B",
+            borderLeft: `3px solid ${cfg.color}`,
+            borderRadius: "8px", padding: "12px 14px",
+            cursor: "pointer", transition: "background 0.15s",
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = "#1E293B"}
+          onMouseLeave={e => e.currentTarget.style.background = "#0F172A"}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+            <div style={{ minWidth: 0 }}>
+              <Badge color={type.color}>{type.label}</Badge>
+              <div style={{ fontWeight: 700, color: "#F1F5F9", fontSize: "15px", marginTop: "5px" }}>{event.title}</div>
+            </div>
+            <div style={{ color: "#94A3B8", fontSize: "12px", whiteSpace: "nowrap", flexShrink: 0, marginTop: "2px" }}>
+              {event.label}
+            </div>
+          </div>
+          {expanded && (
+            <div style={{
+              marginTop: "10px", color: "#94A3B8", fontSize: "14px", lineHeight: "1.7",
+              borderTop: "1px solid #1E293B", paddingTop: "10px",
+            }}>
+              {event.details.split("\n").map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CatColumn ───────────────────────────────────────────────────────────────
+
+function CatColumn({ name, typeFilter, search }) {
+  const cfg    = catConfig[name];
+  const events = name === "Pan" ? panEvents : miaEvents;
+  const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() + 3);
+  const care   = upcomingCare.filter(c => c.cat === name && new Date(c.dueDate) <= cutoff);
+  const weights = weightHistory[name];
+  const latestWeight = weights[weights.length - 1];
+  const lastVisit = [...events].filter(e => e.type === "visit").sort((a,b) => b.date.localeCompare(a.date))[0];
+  const lastLabs  = [...events].filter(e => e.type === "labs" ).sort((a,b) => b.date.localeCompare(a.date))[0];
+
+  const filtered = useMemo(() => {
+    return [...events]
+      .filter(e => {
+        const typeMatch   = typeFilter === "All" || e.type === typeFilter;
+        const q           = search.toLowerCase();
+        const searchMatch = !q || e.title.toLowerCase().includes(q) || e.details.toLowerCase().includes(q);
+        return typeMatch && searchMatch;
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [events, typeFilter, search]);
+
+  return (
+    <div style={{ flex: "1 1 0", minWidth: 0 }}>
+
+      {/* ── Cat header ── */}
+      <div style={{
+        background: "#0F172A", border: `1px solid ${cfg.color}44`,
+        borderRadius: "14px", marginBottom: "18px",
+        display: "flex", overflow: "hidden",
+      }}>
+        {/* Portrait photo — left, full card height */}
+        <div style={{ width: "50%", flexShrink: 0, background: cfg.color + "11" }}>
+          <img
+            src={cfg.photo} alt={name}
+            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }}
+            onError={e => { e.target.style.display = "none"; }}
+          />
+        </div>
+
+        {/* Right content */}
+        <div style={{ flex: 1, padding: "20px 20px 20px 18px", display: "flex", flexDirection: "column" }}>
+          {/* Name */}
+          <div style={{ marginBottom: "14px" }}>
+            <div style={{ fontSize: "26px", fontWeight: 700, color: cfg.color, lineHeight: 1 }}>{name}</div>
+            <div style={{ fontSize: "14px", color: "#94A3B8", marginTop: "4px" }}>Born {cfg.dob} · {cfg.sex} · {cfg.coat}</div>
+          </div>
+
+          {/* Stats grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px", marginBottom: "14px" }}>
+            {[
+              { label: "Weight",     value: `${(latestWeight.lbs/2.20462).toFixed(2)} kg`, sub: latestWeight.date },
+              { label: "Last Visit", value: lastVisit?.label ?? "—",   sub: null },
+              { label: "Last Labs",  value: lastLabs?.label  ?? "—",   sub: null },
+              { label: "Records",    value: events.length,             sub: "on file" },
+            ].map(s => (
+              <div key={s.label} style={{ background: "#020817", borderRadius: "8px", padding: "8px 10px" }}>
+                <div style={{ fontSize: "12px", color: "#94A3B8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.label}</div>
+                <div style={{ fontSize: "17px", fontWeight: 700, color: cfg.color, marginTop: "2px", lineHeight: 1.2 }}>{s.value}</div>
+                {s.sub && <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "2px" }}>{s.sub}</div>}
+              </div>
+            ))}
+          </div>
+
+          {/* Upcoming care */}
+          {care.length > 0 && (
+            <div>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: "#94A3B8", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "9px" }}>
+                Upcoming Care
+              </div>
+              {care.map((c, i) => (
+                <div key={i} style={{
+                  display: "flex", alignItems: "flex-start", gap: "8px",
+                  padding: "8px 0", borderBottom: i < care.length - 1 ? "1px solid #1E293B" : "none",
+                }}>
+                  <span style={{ fontSize: "16px", marginTop: "1px" }}>{c.urgent ? "⚠️" : "📅"}</span>
+                  <div>
+                    <div style={{ fontSize: "15px", color: "#CBD5E1" }}>{c.item}</div>
+                    <div style={{ fontSize: "13px", color: c.urgent ? "#F59E0B" : "#94A3B8", marginTop: "2px" }}>{c.due}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Timeline ── */}
+      <div style={{ fontSize: "12px", color: "#94A3B8", marginBottom: "14px" }}>
+        {filtered.length} event{filtered.length !== 1 ? "s" : ""}
+        {typeFilter !== "All" && ` · ${typeConfig[typeFilter]?.label}`}
+        {search && ` matching "${search}"`}
+        {" · click to expand"}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: "center", color: "#94A3B8", padding: "32px 0", fontSize: "13px" }}>
+          No events match.
+        </div>
+      ) : (
+        filtered.map((event, i) => (
+          <TimelineEvent key={event.date + event.title} event={event} isLast={i === filtered.length - 1} />
+        ))
+      )}
+    </div>
+  );
+}
+
+// ─── WeightChart ──────────────────────────────────────────────────────────────
+
+function WeightChart({ name }) {
+  const cfg  = catConfig[name];
+  const data = weightHistory[name];
+  const min  = Math.min(...data.map(d => d.lbs)) - 0.5;
+  const max  = Math.max(...data.map(d => d.lbs)) + 0.5;
+  const W = 200, H = 56;
+  const pts = data.map((d, i) => ({
+    x: data.length === 1 ? W / 2 : (i / (data.length - 1)) * W,
+    y: H - ((d.lbs - min) / (max - min)) * H,
+    ...d,
+  }));
+  const path = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  return (
+    <div style={{ background: "#020817", borderRadius: "8px", padding: "12px 14px", marginTop: "10px" }}>
+      <div style={{ fontSize: "10px", color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>
+        Weight History (kg)
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "56px", overflow: "visible" }}>
+        <path d={path} fill="none" stroke={cfg.color} strokeWidth="2" strokeLinejoin="round" />
+        {pts.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r="3.5" fill={cfg.color} />
+            <text x={p.x} y={p.y - 7} textAnchor="middle" fill={cfg.color} fontSize="8">{(p.lbs/2.20462).toFixed(2)}</text>
+            <text x={p.x} y={H + 13} textAnchor="middle" fill="#94A3B8" fontSize="7">{p.date}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+// ─── Overview panel ───────────────────────────────────────────────────────────
+
+function Overview() {
+  return (
+    <div>
+      {/* 2-col overview cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+        {["Pan", "Mia"].map(name => {
+          const cfg  = catConfig[name];
+          const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() + 3);
+          const care = upcomingCare.filter(c => c.cat === name && new Date(c.dueDate) <= cutoff);
+          return (
+            <div key={name} style={{
+              background: "#0F172A", border: `1px solid ${cfg.color}44`,
+              borderRadius: "12px", display: "flex", overflow: "hidden", minHeight: "340px",
+            }}>
+              {/* Portrait photo — left, full card height */}
+              <div style={{ width: "50%", flexShrink: 0, background: cfg.color + "11" }}>
+                <img
+                  src={cfg.photo} alt={name}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }}
+                  onError={e => { e.target.style.display = "none"; }}
+                />
+              </div>
+
+              {/* Right content */}
+              <div style={{ flex: 1, padding: "20px 20px 20px 18px", display: "flex", flexDirection: "column" }}>
+                <div style={{ marginBottom: "14px" }}>
+                  <div style={{ fontSize: "26px", fontWeight: 700, color: cfg.color }}>{name}</div>
+                  <div style={{ fontSize: "13px", color: "#94A3B8", marginTop: "3px" }}>Born {cfg.dob} · {cfg.sex} · {cfg.coat}</div>
+                </div>
+                <WeightChart name={name} />
+                {care.length > 0 && (
+                  <div style={{ marginTop: "14px" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 700, color: "#94A3B8", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "9px" }}>
+                      Upcoming Care
+                    </div>
+                    {care.map((c, i) => (
+                      <div key={i} style={{ display: "flex", gap: "8px", padding: "8px 0", alignItems: "flex-start", borderBottom: i < care.length - 1 ? "1px solid #1E293B" : "none" }}>
+                        <span style={{ fontSize: "16px" }}>{c.urgent ? "⚠️" : "📅"}</span>
+                        <div>
+                          <div style={{ fontSize: "15px", color: "#CBD5E1" }}>{c.item}</div>
+                          <div style={{ fontSize: "13px", color: c.urgent ? "#F59E0B" : "#94A3B8", marginTop: "2px" }}>{c.due}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Event breakdown */}
+      <div style={{ background: "#0F172A", border: "1px solid #1E293B", borderRadius: "12px", padding: "16px 20px" }}>
+        <div style={{ fontSize: "12px", fontWeight: 700, color: "#94A3B8", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "14px" }}>
+          Event Breakdown
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+          {Object.entries(typeConfig).map(([key, cfg]) => {
+            const pc = panEvents.filter(e => e.type === key).length;
+            const mc = miaEvents.filter(e => e.type === key).length;
+            return (
+              <div key={key} style={{
+                background: "#020817", borderRadius: "8px", padding: "12px 16px",
+                flex: "1 1 100px", borderTop: `2px solid ${cfg.color}`,
+              }}>
+                <div style={{ fontSize: "22px", marginBottom: "6px" }}>{cfg.icon}</div>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: cfg.color }}>{cfg.label}</div>
+                <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "5px" }}>Pan {pc} · Mia {mc}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── About ───────────────────────────────────────────────────────────────────
+
+function About() {
+  const panTraits = [
+    { icon: "😤", label: "Shy at first",         note: "Warms up once comfortable — loves a warm lap once he trusts you." },
+    { icon: "🫦", label: "Light nipper",          note: "99% attention-seeking, rarely fear. A warning nip means he's done — respect it." },
+    { icon: "🔇", label: "Hates loud noises",     note: "Also dislikes shoes. Calm pats or treats downstairs will settle him." },
+    { icon: "🪮", label: "Loves neck brushing",   note: "Under chin & neck only — never belly, lower back or tail." },
+    { icon: "🖐️", label: "Pat: head to shoulders", note: "Never bottom, tail or belly. If he doesn't want to be held he'll warn-nip." },
+    { icon: "🚪", label: "House protector",       note: "Will meow at the front door if he senses trouble. Treats + calm pats help." },
+    { icon: "😴", label: "Low energy these days", note: "Prefers to watch Mia run around like crazy rather than join in." },
+  ];
+  const miaTraits = [
+    { icon: "⚡", label: "Warms up fast",          note: "Especially with play and treats — she'll be your best friend in minutes." },
+    { icon: "🧸", label: "Obsessed with toys",     note: "Will play with anything. Two 10-min sessions a day is ideal." },
+    { icon: "👋", label: "Loves butt taps",        note: "The harder the better! Also loves a good ear scratch." },
+    { icon: "🏃", label: "Stair darter",           note: "Will shoot right under your feet on stairs — watch out." },
+    { icon: "🐦", label: "Balcony risk ⚠️",        note: "Has leaped off the 3rd floor after birds. Strictly indoor — watch all exits." },
+    { icon: "🚽", label: "Your shadow",            note: "Follows you room to room — yes, including the bathroom." },
+    { icon: "🤸", label: "Falls a lot",            note: "She has zero spatial awareness. Don't panic — she's always fine." },
+  ];
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+      {[
+        {
+          name: "Pan", traits: panTraits,
+          note: "Pan will let Mia eat first, then he eats. Don't be concerned if they ignore food immediately — they like to let it warm up.",
+          fullNotes: [
+            "Pan can be shy at first, but does love having company around or a warm lap to sit on once he's comfortable.",
+            "He can be a grumpy old man at times and can lightly nip/bite if he's scared/annoyed or wants attention (99% of the time this is why he nips — attention). Pan doesn't like shoes or loud noises.",
+            "Pan enjoys playing, but only a little these days. He'll just watch Mia run around like crazy.",
+            "He LOVES being brushed around his neck or under his chin, which is always welcomed, but not his belly or lower back/tail.",
+            "Pan likes to be patted on his head to shoulders, but never his bottom, tail or belly.",
+            "He isn't a huge fan of being picked up or held. Hold his feet and don't touch his belly. If he doesn't want to be held, he'll give you a warning nip.",
+            "Pan is the protector of the house and will meow at the front door if he sees trouble. Sitting with him downstairs, a calming pat or a distraction with treats works to settle him down.",
+          ],
+        },
+        {
+          name: "Mia", traits: miaTraits,
+          note: "Mia will tolerate being held but will likely jump away to play. Not a lap cat, but she'll never leave you alone.",
+          fullNotes: [
+            "Mia is also shy at first with new people, but warms up quickly, especially if you play with her or give her treats.",
+            "Mia LOVES to play with any toys. The two will play fight with each other but it never gets serious so don't worry about them.",
+            "Mia likes butt taps as pats. The harder the better, strangely. She also likes to be scratched on the ears.",
+            "Mia will tolerate being held, but she's likely to jump away & try to play. She isn't much of a lap cat but will follow you from room to room (especially the toilet!).",
+            "Mia likes a brush on her back & tail, but is more interested in playing.",
+            "Mia will dart up/down the stairs right under your feet, so be careful when she's around.",
+            "Pan will let Mia eat first, then he eats. Don't be concerned if they aren't interested in food immediately. They like to let it warm up.",
+            "Mia will (and has) leaped off the 3rd floor balcony after a bird, so we don't let them outside unless it's from their room with the bird netting. FYI she does fall off stuff a lot.",
+          ],
+        },
+      ].map(({ name, traits, note, fullNotes }) => {
+        const cfg = catConfig[name];
+        const altered = cfg.neutered ? `Neutered · ${cfg.neutered}` : cfg.spayed ? `Spayed · ${cfg.spayed}` : null;
+        const profileRows = [
+          { label: "DOB",       value: cfg.dob },
+          { label: "Sex",       value: cfg.sex },
+          { label: "Breed",     value: cfg.breed },
+          { label: "Coat",      value: cfg.coat },
+          { label: "Microchip", value: cfg.microchip },
+          ...(altered ? [{ label: altered.split(" · ")[0], value: altered.split(" · ")[1] }] : []),
+        ];
+        return (
+          <div key={name} style={{ background: "#0F172A", border: `1px solid ${cfg.color}44`, borderRadius: "14px", overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "stretch" }}>
+              <div style={{ width: "50%", flexShrink: 0 }}>
+                <img src={cfg.photo2 || cfg.photo} alt={name} onError={e => e.target.style.display="none"} style={{ width: "100%", height: "260px", objectFit: "cover", objectPosition: "top", display: "block" }} />
+              </div>
+              <div style={{ padding: "22px", display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
+                <div style={{ fontSize: "28px", fontWeight: 700, color: cfg.color, marginBottom: "14px" }}>{cfg.emoji} {name}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "7px", marginBottom: "14px" }}>
+                  {profileRows.map(r => (
+                    <div key={r.label} style={{ display: "flex", gap: "8px", alignItems: "baseline" }}>
+                      <span style={{ fontSize: "10px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", flexShrink: 0, width: "70px" }}>{r.label}</span>
+                      <span style={{ fontSize: "13px", color: "#CBD5E1" }}>{r.value}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: "12px", color: "#94A3B8", lineHeight: 1.7, borderTop: "1px solid #1E293B", paddingTop: "12px" }}>{note}</div>
+              </div>
+            </div>
+            <div style={{ padding: "18px 22px", borderTop: `1px solid ${cfg.color}22` }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "14px" }}>
+                Personality &amp; Care Tips
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {traits.map((t, i) => (
+                  <div key={i} style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                    <span style={{ fontSize: "18px", lineHeight: 1.3, flexShrink: 0 }}>{t.icon}</span>
+                    <div>
+                      <div style={{ fontSize: "13px", fontWeight: 700, color: "#E2E8F0" }}>{t.label}</div>
+                      <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "2px", lineHeight: 1.5 }}>{t.note}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Full notes */}
+            <div style={{ padding: "18px 22px", borderTop: `1px solid ${cfg.color}22` }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "14px" }}>
+                Full Notes
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {fullNotes.map((para, i) => (
+                  <p key={i} style={{ fontSize: "14px", color: "#CBD5E1", lineHeight: 1.75, margin: 0 }}>
+                    {para}
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── PetSitter ────────────────────────────────────────────────────────────────
+
+function PetSitter() {
+  const schedule = [
+    { time: "7:00 AM",  icon: "🍽️", label: "Wet Food",  color: "#10B981", detail: "2 bowls · ¼ cup water + ½ brick each · mix until soup-like. Let it sit a moment — they like it warm." },
+    { time: "10:00 AM", icon: "🐟", label: "Treats",    color: "#F59E0B", detail: "~16 dried chicken & salmon treats (≈8 each). Hide them around the house — enrichment activity to get them moving." },
+    { time: "5:00 PM",  icon: "🍽️", label: "Wet Food",  color: "#10B981", detail: "Same as morning. Pan eats after Mia — totally normal, don't intervene." },
+    { time: "Bedtime",  icon: "🐟", label: "Treats",    color: "#8B5CF6", detail: "Tuna treats only. Small serve before lights out." },
+  ];
+  const rules = [
+    { icon: "🏠", label: "Strictly indoor",            urgent: true,  note: "Be very careful at the front door and balcony exits. Mia especially will bolt — she has jumped off the 3rd floor before." },
+    { icon: "🚫", label: "No people food",             urgent: true,  note: "Raw-diet cats only. No vegetables, grains, plants or human food. No exceptions." },
+    { icon: "🪣", label: "Litter — once daily",        urgent: false, note: "#1s in the bin, #2s flushed down the toilet. Raw diet means no odour — if there is, flag it." },
+    { icon: "🎾", label: "Play — 2 × 10 min/day",     urgent: false, note: "Mia will play with anything. Pan mostly watches but don't skip it — enrichment matters for both." },
+    { icon: "💧", label: "Water — every few days",     urgent: false, note: "They drink mainly through wet food. If you see them at the bowl a lot, that's a health flag — let Leanne know." },
+    { icon: "🛋️", label: "Bench & table — tolerated", urgent: false, note: "That battle is lost. But no scratching furniture — redirect to their scratching posts." },
+    { icon: "🥩", label: "BARF diet",                  urgent: false, note: "Bone and raw food only. Cats are carnivores — no kibble, no veggies, no grains (in 99% of commercial food, sadly)." },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+
+      {/* Photo strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+        {["./PanMia.jpg", "./PanMia1.jpg", "./PanMia2.jpg", "./PanMia3.jpg"].map((src, i) => (
+          <div key={i} style={{ borderRadius: "12px", overflow: "hidden", aspectRatio: "1 / 1" }}>
+            <img
+              src={src} alt={`Pan & Mia ${i}`}
+              onError={e => { e.target.parentElement.style.display = "none"; }}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Daily schedule */}
+      <div style={{ background: "#0F172A", border: "1px solid #1E293B", borderRadius: "14px", padding: "24px" }}>
+        <div style={{ fontSize: "12px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "20px" }}>
+          🕐 Daily Feeding Schedule
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "14px" }}>
+          {schedule.map((s, i) => (
+            <div key={i} style={{ background: "#020817", borderRadius: "10px", padding: "18px", borderTop: `3px solid ${s.color}` }}>
+              <div style={{ fontSize: "26px", marginBottom: "10px" }}>{s.icon}</div>
+              <div style={{ fontSize: "20px", fontWeight: 700, color: s.color }}>{s.time}</div>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: "#E2E8F0", marginTop: "2px" }}>{s.label}</div>
+              <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "10px", lineHeight: 1.6 }}>{s.detail}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Food prep */}
+      <div style={{ background: "#0F172A", border: "1px solid #1E293B", borderRadius: "14px", padding: "24px" }}>
+        <div style={{ fontSize: "12px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "16px" }}>
+          🥩 Wet Food Prep
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+          {[
+            { label: "Per bowl",    value: "¼ cup water + ½ brick", note: "Mix to a soup-like consistency" },
+            { label: "Bowls",       value: "2 separate bowls",       note: "One each — Pan always waits for Mia" },
+            { label: "Temperature", value: "Let it warm up",         note: "They'll ignore cold food at first" },
+            { label: "Diet type",   value: "BARF only",              note: "No kibble, veggies, grains or people food" },
+          ].map((item, i) => (
+            <div key={i} style={{ background: "#020817", borderRadius: "8px", padding: "12px 14px" }}>
+              <div style={{ fontSize: "11px", color: "#94A3B8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{item.label}</div>
+              <div style={{ fontSize: "15px", fontWeight: 700, color: "#10B981", marginTop: "3px" }}>{item.value}</div>
+              <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "4px", lineHeight: 1.5 }}>{item.note}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Rules */}
+      <div style={{ background: "#0F172A", border: "1px solid #1E293B", borderRadius: "14px", padding: "24px" }}>
+        <div style={{ fontSize: "12px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "16px" }}>
+          📋 Rules &amp; Important Notes
+        </div>
+        <div>
+          {rules.map((r, i) => (
+            <div key={i} style={{
+              display: "flex", gap: "16px", alignItems: "flex-start",
+              padding: "16px 0",
+              borderBottom: i < rules.length - 1 ? "1px solid #1E293B" : "none",
+            }}>
+              <span style={{ fontSize: "22px", lineHeight: 1.3, flexShrink: 0 }}>{r.icon}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "14px", fontWeight: 700, color: "#E2E8F0" }}>{r.label}</span>
+                  {r.urgent && (
+                    <span style={{ background: "#F59E0B22", color: "#F59E0B", fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "4px", letterSpacing: "0.05em" }}>
+                      IMPORTANT
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: "13px", color: "#94A3B8", marginTop: "4px", lineHeight: 1.6 }}>{r.note}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
+// ─── Travel Map ───────────────────────────────────────────────────────────────
+
+const travelStops = [
+  { id:"texas",     name:"Texas, USA",          subtitle:"Pan & Mia both passed through Texas", coords:[30.27,262.26], cats:["Pan","Mia"], date:"Pan: Born 20 Mar 2021 · Mia: Born Apr 2024", note:"Pan surrendered to BARC Animal Shelter, Houston (Mar 2023), then transferred to Rescued Pets Movement before heading north to Colorado. Mia was born in Texas and also transferred to a Colorado shelter.", color:"#F472B6" },
+  { id:"denver",    name:"Denver, Colorado",     subtitle:"Shared home before Thailand",      coords:[39.74,255.01], cats:["Pan","Mia"],  date:"Pan: Mar 2023–Jun 2025 · Mia: Dec 2024–Jun 2025", note:"Pan transferred from RPM Houston to Foothills Animal Shelter CO, then adopted. Mia adopted from HSBV Dec 8, 2024. Both lived here together until June 2025.",  color:"#60A5FA" },
+  { id:"lax",       name:"Los Angeles, CA",      subtitle:"LAX — transit",                   coords:[33.94,241.59], cats:["Pan","Mia"],  date:"Jun 10, 2025",            note:"Layover at Los Angeles International Airport on flight AZ201.",                                                      color:"#A78BFA" },
+  { id:"seoul",     name:"Seoul, South Korea",   subtitle:"Incheon Airport — transit",       coords:[37.46,126.44],  cats:["Pan","Mia"],  date:"Jun 10, 2025",            note:"Layover at Incheon International Airport (ICN) on connecting flight C2765.",                                       color:"#A78BFA" },
+  { id:"chiangmai", name:"Chiang Mai, Thailand", subtitle:"Current home ✦",                  coords:[18.77,98.96],   cats:["Pan","Mia"],  date:"Jun 2025 – Present",      note:"Current home. Arrived via BKK on flight AZ201/C2765. Import permits issued Apr 30, 2025. Both microchips confirmed.", color:"#10B981" },
+];
+
+function TravelMap() {
+  const mapRef = React.useRef(null);
+  const mapInstanceRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (mapInstanceRef.current || !mapRef.current) return;
+
+    const map = L.map(mapRef.current, { center:[35,175], zoom:2, minZoom:2, maxZoom:10 });
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution:"© OpenStreetMap © CARTO", subdomains:"abcd", maxZoom:20,
+    }).addTo(map);
+
+    const fl = { weight:2, opacity:0.75, dashArray:"5, 4" };
+
+    // Both cats: Texas → Denver → LAX (US coords shifted +360 for Pacific-centered map)
+    L.polyline([[30.27,262.26],[39.74,255.01]], { ...fl, color:"#A78BFA" }).addTo(map);
+    L.polyline([[39.74,255.01],[33.94,241.59]], { ...fl, color:"#A78BFA" }).addTo(map);
+    // LAX → Seoul via Pacific (single segment, no antimeridian split needed with +360 coords)
+    L.polyline([[33.94,241.59],[45,220],[55,197],[57,182],[52,162],[43,140],[37.46,126.44]], { ...fl, color:"#A78BFA" }).addTo(map);
+    // Seoul → Chiang Mai
+    L.polyline([[37.46,126.44],[18.77,98.96]], { ...fl, color:"#A78BFA" }).addTo(map);
+
+    travelStops.forEach(stop => {
+      const sz = stop.id === "chiangmai" ? 14 : 11;
+      const icon = L.divIcon({
+        className:"",
+        html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${stop.color};border:2px solid #020817;box-shadow:0 0 0 3px ${stop.color}44;"></div>`,
+        iconSize:[sz,sz], iconAnchor:[sz/2,sz/2], popupAnchor:[0,-sz],
+      });
+      const cats = stop.cats.map(c => c==="Pan" ? "🐱 Pan" : "🐾 Mia").join(" · ");
+      L.marker(stop.coords, { icon })
+        .bindPopup(`<div style="min-width:180px"><div style="font-weight:700;color:${stop.color};font-size:14px;margin-bottom:2px">${stop.name}</div><div style="color:#64748B;font-size:11px;margin-bottom:6px">${stop.subtitle}</div><div style="color:#94A3B8;font-size:11px">${cats} · ${stop.date}</div><div style="color:#CBD5E1;font-size:12px;margin-top:6px;line-height:1.5">${stop.note}</div></div>`)
+        .addTo(map);
+    });
+
+    mapInstanceRef.current = map;
+    return () => { map.remove(); mapInstanceRef.current = null; };
+  }, []);
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"20px" }}>
+      <div ref={mapRef} style={{ width:"100%", height:"520px", borderRadius:"14px", overflow:"hidden", border:"1px solid #1E293B" }} />
+
+      <div style={{ display:"flex", gap:"24px", flexWrap:"wrap", padding:"0 2px" }}>
+        {[
+          { color:"#A78BFA", label:"Texas → Colorado (both cats)" },
+          { color:"#A78BFA", label:"Shared flight route" },
+          { color:"#10B981", label:"Current home" },
+        ].map(l => (
+          <div key={l.label} style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+            <svg width="24" height="6"><line x1="0" y1="3" x2="24" y2="3" stroke={l.color} strokeWidth="2" strokeDasharray="5,3" /></svg>
+            <span style={{ fontSize:"12px", color:"#94A3B8" }}>{l.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background:"#0F172A", border:"1px solid #1E293B", borderRadius:"14px", padding:"20px 24px" }}>
+        <div style={{ fontSize:"12px", fontWeight:700, color:"#94A3B8", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:"16px" }}>Journey</div>
+        {travelStops.map((stop, i) => (
+          <div key={stop.id} style={{ display:"flex", gap:"14px" }}>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", width:"14px", flexShrink:0 }}>
+              <div style={{ width:"12px", height:"12px", borderRadius:"50%", background:stop.color, flexShrink:0, marginTop:"4px", boxShadow:`0 0 0 3px ${stop.color}33` }} />
+              {i < travelStops.length - 1 && <div style={{ width:"2px", flexGrow:1, background:"#1E293B", minHeight:"24px", margin:"4px 0" }} />}
+            </div>
+            <div style={{ paddingBottom: i < travelStops.length - 1 ? "14px" : 0, flex:1 }}>
+              <div style={{ fontSize:"15px", fontWeight:700, color:stop.color }}>{stop.name}</div>
+              <div style={{ fontSize:"12px", color:"#64748B", marginTop:"2px" }}>
+                {stop.cats.map(c => c==="Pan" ? "🐱" : "🐾").join(" ")} · {stop.date}
+              </div>
+              <div style={{ fontSize:"12px", color:"#94A3B8", marginTop:"3px", lineHeight:1.5 }}>{stop.note}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Labs ─────────────────────────────────────────────────────────────────────
+
+const testInfo = {
+  // ── CBC ──────────────────────────────────────────────────────────────────
+  RBC:          { name:"Red Blood Cells",              good:"stable",  desc:"Counts oxygen-carrying red cells. Too few = anemia; too many = thickened blood." },
+  HCT:          { name:"Hematocrit",                   good:"stable",  desc:"% of blood made up of red cells. Drops with anemia; rises with dehydration." },
+  HGB:          { name:"Hemoglobin",                   good:"stable",  desc:"The protein inside red cells that carries oxygen. Closely mirrors HCT." },
+  MCV:          { name:"Mean Corpuscular Volume",      good:"stable",  desc:"Average red cell size. Small = iron deficiency; large = B12 or folate issues." },
+  MCH:          { name:"Mean Corpuscular Hgb",         good:"stable",  desc:"Average hemoglobin per red cell — reflects red cell quality alongside MCV." },
+  MCHC:         { name:"Hgb Concentration",            good:"stable",  desc:"Hemoglobin concentration inside red cells. Low = poorly filled, pale cells." },
+  WBC:          { name:"White Blood Cells",            good:"stable",  desc:"Immune cells that fight infection. High = infection/inflammation; low = immune suppression. Lab ref range (4–19K) is biased by pro-inflammatory diets — Uniquely Cats considers 2–10K the true ideal for cats on raw/species-appropriate food." },
+  NEU:          { name:"Neutrophils",                  good:"stable",  desc:"First-responder immune cells. High = bacterial infection or stress; low = vulnerability to infection." },
+  LYM:          { name:"Lymphocytes",                  good:"stable",  desc:"Immune cells for viral response and long-term immunity. Imbalance with neutrophils drives NLR flagging." },
+  MONO:         { name:"Monocytes",                    good:"stable",  desc:"Immune cells that clean up tissue damage and fight chronic infection." },
+  EOS:          { name:"Eosinophils",                  good:"stable",  desc:"Fight parasites and drive allergic reactions. High = parasite burden or allergy." },
+  BASO:         { name:"Basophils",                    good:"stable",  desc:"Rare immune cells involved in allergic response. Usually near zero in healthy cats." },
+  NLR:          { name:"Neutrophil:Lymphocyte Ratio",  good:"stable",  desc:"Balance of innate vs adaptive immunity. Persistently low (Pan & Mia) = possible immune imbalance — monitor." },
+  PLT:          { name:"Platelets",                    good:"higher",  desc:"Clotting cells that stop bleeding. Persistently LOW in both Pan and Mia — a key monitoring target." },
+  MPV:          { name:"Mean Platelet Volume",         good:"stable",  desc:"Average platelet size. Large platelets = bone marrow compensating for low count by releasing them early." },
+  PCT:          { name:"Plateletcrit",                 good:"stable",  desc:"% of blood made up of platelets. Mirrors PLT count." },
+  "RETIC-HGB":  { name:"Reticulocyte Hemoglobin",      good:"higher",  desc:"Hemoglobin in newly-made red cells. LOW = iron-deficient red cell production (flagged for Pan, Mar '25)." },
+  // ── Chemistry ────────────────────────────────────────────────────────────
+  SDMA:         { name:"Symmetric Dimethylarginine",   good:"lower",   desc:"Earliest kidney function marker — detects decline years before creatinine rises. Keep as low as possible." },
+  GLU:          { name:"Glucose (Blood Sugar)",        good:"stable",  desc:"Blood sugar. Persistently high = diabetes risk; low = hypoglycemia. Cats can spike from vet stress alone." },
+  CREA:         { name:"Creatinine",                   good:"lower",   desc:"Kidney waste product. Rising creatinine = reduced filtration — a later-stage kidney marker than SDMA." },
+  BUN:          { name:"Blood Urea Nitrogen",          good:"lower",   desc:"Another kidney waste marker. Also rises with dehydration or high-protein diet — always interpret with CREA." },
+  PHOS:         { name:"Phosphorus",                   good:"lower",   desc:"Mineral regulated by kidneys. Rises as kidney function declines — an important long-term trend to watch." },
+  CA:           { name:"Calcium",                      good:"stable",  desc:"Vital mineral for bones, nerves, and heart rhythm. Both high and low are serious — stable in range is the goal." },
+  Na:           { name:"Sodium",                       good:"stable",  desc:"Electrolyte controlling fluid balance. Abnormal levels signal dehydration, kidney, or heart problems." },
+  K:            { name:"Potassium",                    good:"stable",  desc:"Electrolyte critical for heart muscle. Low = weakness; high = dangerous heart arrhythmia. Keep in range." },
+  Cl:           { name:"Chloride",                     good:"stable",  desc:"Electrolyte balancing sodium and acid-base status. Tracks closely with sodium." },
+  TCO2:         { name:"Total CO₂ / Bicarbonate",      good:"stable",  desc:"Measures acid-base balance. Low = metabolic acidosis (seen with kidney disease); high = alkalosis." },
+  TP:           { name:"Total Protein",                good:"stable",  desc:"Combined albumin + globulin. Low = poor nutrition or liver disease; high = dehydration or chronic infection." },
+  ALB:          { name:"Albumin",                      good:"stable",  desc:"Main liver-made protein. Low = liver disease or malnutrition. High (Mia, May '25) = likely dehydration." },
+  GLOB:         { name:"Globulin",                     good:"stable",  desc:"Immune and transport proteins. Chronically high = ongoing inflammation or infection." },
+  ALT:          { name:"Alanine Aminotransferase",     good:"lower",   desc:"Liver cell enzyme. Rising ALT = liver cell damage — the most sensitive liver marker in cats." },
+  AST:          { name:"Aspartate Aminotransferase",   good:"lower",   desc:"Liver and muscle enzyme. High = liver damage or muscle injury (also rises with vet-visit stress)." },
+  ALKP:         { name:"Alkaline Phosphatase",         good:"lower",   desc:"Liver, bile duct, and bone enzyme. High = liver disease, bile obstruction, or bone disease." },
+  GGT:          { name:"Gamma-Glutamyl Transferase",   good:"lower",   desc:"Bile duct enzyme — very sensitive for liver disease in cats. Even small elevations are significant." },
+  TBIL:         { name:"Total Bilirubin",              good:"lower",   desc:"Liver waste from red cell breakdown. High = liver disease or excess red cell destruction (jaundice)." },
+  CHOL:         { name:"Cholesterol",                  good:"stable",  desc:"Blood fat. Cats rarely develop heart disease from high cholesterol — elevations usually reflect diet or thyroid." },
+  AMYL:         { name:"Amylase",                      good:"lower",   desc:"Digestive enzyme from the pancreas and salivary glands. Elevated = possible pancreatitis." },
+  LIPA:         { name:"Lipase",                       good:"lower",   desc:"Pancreatic enzyme — more specific than amylase for pancreatitis in cats. US and Thailand labs use different assays." },
+  CK:           { name:"Creatine Kinase",              good:"lower",   desc:"Muscle enzyme. Rises with muscle injury, overexertion, or stress from vet restraint." },
+  // ── UA ───────────────────────────────────────────────────────────────────
+  USG:          { name:"Urine Specific Gravity",       good:"higher",  desc:"How concentrated the urine is. High = kidneys concentrating well. Low = kidneys failing to concentrate (early CKD sign)." },
+  UrpH:         { name:"Urine pH",                     good:"stable",  desc:"Acidity of urine. Slightly acidic (6.0–7.0) is ideal for cats. High pH encourages crystal and stone formation." },
+};
+
+function fmtLabDate(d) {
+  const months = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const [y, m] = d.split("-");
+  return `${months[+m]} '${y.slice(2)}`;
+}
+
+const vetContext = {
+  Pan: {
+    USG:  "Mar '25 vet: At the high end of ideal. If Pan had his normal breakfast before the appointment, add a bit more water to his meals. If he was fasted, the concentration is expected.",
+    UrpH: "Mar '25 vet: Trace protein on UA screening — not concerning, commonly seen with more concentrated urine.",
+  },
+  Mia: {
+    HGB:  "May '25 vet: Likely altitude compensation at Chiang Mai elevation — common and expected in young, active cats. No symptoms = no concern.",
+    NLR:  "May '25 vet: Inverse NEU:LYM ratio is normal for young cats still building long-term immunity. Not concerning.",
+    SDMA: "May '25 vet: Overall kidney health assessed as good. Mild elevation noted — monitor at next annual.",
+    USG:  "May '25 vet: Likely concentrated due to fasting before visit. If not fasted, recommend 1:1 food-to-water ratio.",
+    ALB:  "May '25 vet: Mild elevation likely due to not eating before bloodwork (dehydration). Not a concern.",
+  },
+};
+
+function Labs() {
+  const [panel, setPanel] = useState("cbc");
+  const [tip, setTip] = useState(null);
+  return (
+    <div>
+      {/* Hover tooltip */}
+      {tip && (() => {
+        const info = testInfo[tip.test] || {};
+        const gColor = info.good === "lower" ? "#60A5FA" : info.good === "higher" ? "#34D399" : "#94A3B8";
+        const gLabel = info.good === "lower" ? "↓ Lower is better" : info.good === "higher" ? "↑ Higher is better" : "↔ Stable in range";
+        return (
+          <div style={{
+            position: "fixed", left: tip.x, top: tip.y, zIndex: 9999,
+            background: "#0F172A", border: "1px solid #1E293B",
+            borderRadius: "10px", padding: "12px 14px",
+            maxWidth: "260px", boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+            pointerEvents: "none",
+          }}>
+            <div style={{ fontWeight: 700, color: "#F1F5F9", fontSize: "13px", marginBottom: "4px" }}>{info.name || tip.test}</div>
+            <div style={{ fontSize: "12px", color: "#94A3B8", lineHeight: 1.6, marginBottom: "8px" }}>{info.desc}</div>
+            <div style={{ fontSize: "11px", color: gColor, fontWeight: 600 }}>{gLabel}</div>
+          </div>
+        );
+      })()}
+      {/* Flag summaries */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+        {["Pan", "Mia"].map(name => {
+          const cfg   = catConfig[name];
+          const items = [
+            ...labData[name].cbc.map(it => ({ ...it, panel: "CBC" })),
+            ...labData[name].chem.map(it => ({ ...it, panel: "Chem" })),
+            ...(labData[name].ua || []).map(it => ({ ...it, panel: "UA" })),
+          ];
+          const flags = items.filter(it => {
+            const v = it.points[it.points.length - 1].val;
+            return v < it.ref[0] || v > it.ref[1];
+          });
+          return (
+            <div key={name} style={{ background: "#0F172A", border: `1px solid ${flags.length ? "#EF444433" : cfg.color + "33"}`, borderRadius: "12px", padding: "16px 20px" }}>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: flags.length ? "12px" : 0 }}>
+                <span style={{ fontSize: "16px" }}>{cfg.emoji}</span>
+                <span style={{ fontSize: "15px", fontWeight: 700, color: cfg.color }}>{name}</span>
+                <span style={{ fontSize: "12px", color: flags.length ? "#F59E0B" : "#10B981" }}>
+                  {flags.length ? `${flags.length} value${flags.length > 1 ? "s" : ""} outside reference range` : "✓ All values within normal range"}
+                </span>
+              </div>
+              {flags.map((f, i) => {
+                const v = f.points[f.points.length - 1].val;
+                const isHigh = v > f.ref[1];
+                const col = isHigh ? "#EF4444" : "#F59E0B";
+                const vn = vetContext[name]?.[f.test];
+                return (
+                  <div key={i} style={{ padding: "6px 0", borderTop: "1px solid #1E293B" }}>
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                      <span style={{ fontFamily: "monospace", fontSize: "12px", color: "#64748B" }}>
+                        <span style={{ color: "#334155" }}>{f.panel} › </span>{f.test}
+                      </span>
+                      <span style={{ fontSize: "15px", fontWeight: 700, color: col }}>{v} {f.unit}</span>
+                      <span style={{ background: col + "22", color: col, fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "4px" }}>{isHigh ? "HIGH" : "LOW"}</span>
+                      <span style={{ fontSize: "11px", color: "#334155" }}>ref {f.ref[0]}–{f.ref[1]}</span>
+                    </div>
+                    {vn && (
+                      <div style={{ fontSize: "11px", color: "#60A5FA", fontStyle: "italic", marginTop: "3px", paddingLeft: "2px" }}>
+                        ℹ️ {vn}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Panel toggle */}
+      <div style={{ display: "flex", gap: "4px", background: "#0F172A", borderRadius: "10px", padding: "4px", width: "fit-content", marginBottom: "20px" }}>
+        {[["cbc","🩸 CBC"],["chem","⚗️ Chemistry 17"],["ua","🔬 Urinalysis"]].map(([id, label]) => (
+          <button key={id} onClick={() => setPanel(id)} style={{
+            padding: "7px 18px", borderRadius: "8px", border: "none",
+            background: panel === id ? "#1E293B" : "transparent",
+            color: panel === id ? "#F1F5F9" : "#64748B",
+            fontSize: "13px", fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {/* Per-cat tables with date columns */}
+      <div style={{ display: "flex", flexDirection: "row", gap: "20px", alignItems: "flex-start" }}>
+        {["Pan", "Mia"].map(name => {
+          const cfg   = catConfig[name];
+          const items = labData[name][panel] || [];
+          if (!items.length) return (
+            <div key={name} style={{ background: "#0F172A", border: `1px solid ${cfg.color}22`, borderRadius: "12px", padding: "20px", color: "#475569", fontSize: "13px", flex: "1 1 0", minWidth: 0 }}>
+              {cfg.emoji} {name} — no data for this panel yet
+            </div>
+          );
+
+          // All unique dates across all tests in this panel, sorted oldest → newest
+          const dates = [...new Set(items.flatMap(it => it.points.map(p => p.date)))].sort();
+          const colW = 82;
+          const gridCols = `80px 88px 72px${dates.map(() => ` ${colW}px`).join("")}`;
+
+          // Mini sparkline for a single test row
+          const Sparkline = ({ item }) => {
+            const pts = item.points.slice().sort((a, b) => a.date.localeCompare(b.date));
+            if (pts.length < 2) return <div style={{ width: 60, height: 28 }} />;
+            const W = 60, H = 28, pad = 3;
+            const vals = pts.map(p => p.val);
+            const lo = Math.min(...vals, item.ref[0]);
+            const hi = Math.max(...vals, item.ref[1]);
+            const rng = hi - lo || 1;
+            const toX = i => pad + (i / (pts.length - 1)) * (W - pad * 2);
+            const toY = v => H - pad - ((v - lo) / rng) * (H - pad * 2);
+            const refY0 = toY(item.ref[1]);
+            const refY1 = toY(item.ref[0]);
+            const anyOut = pts.some(p => p.val < item.ref[0] || p.val > item.ref[1]);
+            const lineCol = anyOut ? "#F59E0B" : cfg.color;
+            const polyPts = pts.map((p, i) => `${toX(i).toFixed(1)},${toY(p.val).toFixed(1)}`).join(" ");
+            const lx = toX(pts.length - 1), ly = toY(pts[pts.length - 1].val);
+            return (
+              <svg width={W} height={H} style={{ display: "block", overflow: "visible" }}>
+                <rect x={pad} y={Math.min(refY0, refY1)} width={W - pad * 2} height={Math.abs(refY1 - refY0)} fill="#1E293B" opacity="0.7" rx="1" />
+                <polyline points={polyPts} fill="none" stroke={lineCol} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+                <circle cx={lx} cy={ly} r="2.5" fill={lineCol} />
+              </svg>
+            );
+          };
+
+          return (
+            <div key={name} style={{ background: "#0F172A", border: `1px solid ${cfg.color}33`, borderRadius: "12px", overflow: "hidden", flex: "1 1 0", minWidth: 0 }}>
+              {/* Card header */}
+              <div style={{ padding: "14px 18px", borderBottom: "1px solid #1E293B", display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "15px" }}>{cfg.emoji}</span>
+                <span style={{ fontSize: "15px", fontWeight: 700, color: cfg.color }}>{name}</span>
+                <span style={{ fontSize: "11px", color: "#475569" }}>
+                  {panel === "ua" ? "Historical · Mar 2026 pending" : `${dates.length} result set${dates.length !== 1 ? "s" : ""} · Chiang Mai Center Animal Hospital`}
+                </span>
+              </div>
+
+              {/* Scrollable grid */}
+              <div style={{ overflowX: "auto" }}>
+                <div style={{ minWidth: "max-content" }}>
+
+                  {/* Column headers */}
+                  <div style={{ display: "grid", gridTemplateColumns: gridCols, background: "#020817", borderBottom: "1px solid #1E293B" }}>
+                    <div style={{ padding: "8px 14px", fontSize: "11px", fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>Test</div>
+                    <div style={{ padding: "8px 10px", fontSize: "11px", fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>Ref Range</div>
+                    <div style={{ padding: "8px 6px", fontSize: "11px", fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>Trend</div>
+                    {dates.map((d, di) => {
+                      const isLatest = di === dates.length - 1;
+                      return (
+                        <div key={d} style={{ padding: "8px 6px", textAlign: "center" }}>
+                          <div style={{ fontSize: "13px", fontWeight: 700, color: isLatest ? cfg.color : "#64748B" }}>{fmtLabDate(d)}</div>
+                          {isLatest && <div style={{ fontSize: "10px", color: "#475569", marginTop: "1px" }}>latest</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Data rows */}
+                  {items.map((item, ri) => {
+                    const pointMap = Object.fromEntries(item.points.map(p => [p.date, p.val]));
+                    const anyOut = item.points.some(p => p.val < item.ref[0] || p.val > item.ref[1]);
+                    return (
+                      <div key={item.test} style={{
+                        display: "grid", gridTemplateColumns: gridCols,
+                        borderBottom: ri < items.length - 1 ? "1px solid #0D1424" : "none",
+                        background: ri % 2 === 0 ? "transparent" : "#020817",
+                      }}>
+                        {/* Test name */}
+                        <div
+                          style={{ padding: "9px 14px", fontFamily: "monospace", fontSize: "14px", color: anyOut ? "#F1F5F9" : "#94A3B8", fontWeight: anyOut ? 600 : 400, cursor: "help" }}
+                          onMouseEnter={e => { const r = e.currentTarget.getBoundingClientRect(); setTip({ test: item.test, x: r.right + 10, y: r.top }); }}
+                          onMouseLeave={() => setTip(null)}
+                        >
+                          {item.test}
+                          {item.unit && <span style={{ fontSize: "11px", color: "#475569", marginLeft: "4px" }}>{item.unit}</span>}
+                        </div>
+                        {/* Ref range */}
+                        <div style={{ padding: "9px 10px", fontSize: "12px", color: "#64748B", display: "flex", alignItems: "center" }}>
+                          {item.ref[0]}–{item.ref[1]}
+                        </div>
+                        {/* Sparkline */}
+                        <div style={{ padding: "4px 6px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                          <Sparkline item={item} />
+                          {(() => {
+                            const info = testInfo[item.test];
+                            if (!info) return null;
+                            const g = info.good;
+                            return (
+                              <div style={{ fontSize: "10px", textAlign: "center", marginTop: "2px", color: g === "lower" ? "#60A5FA" : g === "higher" ? "#34D399" : "#64748B" }}>
+                                {g === "lower" ? "↓ better" : g === "higher" ? "↑ better" : "↔ stable"}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                        {/* Value cells */}
+                        {dates.map((d, di) => {
+                          const val = pointMap[d];
+                          const isLatest = di === dates.length - 1;
+                          if (val === undefined) return (
+                            <div key={d} style={{ padding: "9px 6px", textAlign: "center", color: "#334155", fontSize: "14px" }}>—</div>
+                          );
+                          const isHigh = val > item.ref[1];
+                          const isLow  = val < item.ref[0];
+                          const isOut  = isHigh || isLow;
+                          const col = isOut
+                            ? (isHigh ? "#EF4444" : "#F59E0B")
+                            : isLatest ? "#F1F5F9" : "#94A3B8";
+                          return (
+                            <div key={d} style={{
+                              padding: "9px 6px", textAlign: "center",
+                              fontSize: "14px", fontWeight: isOut ? 700 : isLatest ? 600 : 400,
+                              color: col,
+                              background: isOut ? (isHigh ? "#EF444408" : "#F59E0B08") : "transparent",
+                            }}>
+                              {val}
+                              {isOut && <div style={{ fontSize: "10px", color: isHigh ? "#EF4444" : "#F59E0B", lineHeight: 1 }}>{isHigh ? "▲" : "▼"}</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+
+function App() {
+  const [view,       setView]       = useState("timeline");
+  const [typeFilter, setTypeFilter] = useState("All");
+  const [search,     setSearch]     = useState("");
+
+  const navBtn = (id, label) => (
+    <button onClick={() => setView(id)} style={{
+      padding: "7px 16px", borderRadius: "8px", border: "none",
+      background: view === id ? "#1E293B" : "transparent",
+      color: view === id ? "#F1F5F9" : "#94A3B8",
+      fontSize: "13px", fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
+    }}>{label}</button>
+  );
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#020817", padding: "32px 40px" }}>
+      <div style={{ maxWidth: "1500px", margin: "0 auto" }}>
+
+        {/* ── Header ── */}
+        <div style={{ marginBottom: "28px" }}>
+<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
+            <div>
+              <h1 style={{ fontSize: "32px", fontWeight: 700, color: "#F8FAFC", lineHeight: 1.2 }}>
+                Pan &amp; Mia · Health Monitor
+              </h1>
+              <div style={{ marginTop: "6px", display: "flex", gap: "16px", alignItems: "center" }}>
+                <span style={{ fontSize: "15px", color: catConfig.Pan.color }}>🐱 Pan</span>
+                <span style={{ fontSize: "15px", color: catConfig.Mia.color }}>🐾 Mia</span>
+                <span style={{ fontSize: "13px", color: "#94A3B8" }}>· Leanne Woodmass</span>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "4px", background: "#0F172A", borderRadius: "10px", padding: "4px" }}>
+              {navBtn("overview",  "📊 Overview")}
+              {navBtn("timeline",  "📅 Timeline")}
+              {navBtn("labs",      "🧪 Labs")}
+              {navBtn("about",     "🐱 About")}
+              {navBtn("petsitter", "🏠 Pet Sitter")}
+              {navBtn("travel",    "🗺️ Travel")}
+            </div>
+          </div>
+        </div>
+
+
+        {/* ── Overview ── */}
+        {view === "overview" && <Overview />}
+
+        {/* ── Labs ── */}
+        {view === "labs" && <Labs />}
+
+        {/* ── About ── */}
+        {view === "about" && <About />}
+
+        {/* ── Pet Sitter ── */}
+        {view === "petsitter" && <PetSitter />}
+
+        {/* ── Travel Map ── */}
+        {view === "travel" && <TravelMap />}
+
+        {/* ── Timeline ── */}
+        {view === "timeline" && (
+          <div>
+            {/* Controls bar */}
+            <div style={{ marginBottom: "20px", display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search events…"
+                style={{
+                  background: "#0F172A", border: "1px solid #1E293B",
+                  borderRadius: "8px", padding: "7px 12px", color: "#F1F5F9",
+                  fontSize: "14px", outline: "none", fontFamily: "Georgia, serif",
+                  width: "180px",
+                }}
+                onFocus={e => e.target.style.borderColor = "#94A3B8"}
+                onBlur={e => e.target.style.borderColor = "#1E293B"}
+              />
+              <div style={{ width: "1px", height: "20px", background: "#1E293B" }} />
+              {["All", "visit", "labs", "vaccine", "finding", "other"].map(t => {
+                const active = typeFilter === t;
+                const color  = t === "All" ? "#94A3B8" : typeConfig[t].color;
+                return (
+                  <button key={t} onClick={() => setTypeFilter(t)} style={{
+                    padding: "5px 11px", borderRadius: "20px", border: "1px solid",
+                    borderColor: active ? color : "#1E293B",
+                    background: active ? color + "22" : "transparent",
+                    color: active ? color : "#94A3B8",
+                    fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                  }}>
+                    {t === "All" ? "All Types" : typeConfig[t].icon + " " + typeConfig[t].label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 2-column timeline */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" }}>
+              <CatColumn name="Pan" typeFilter={typeFilter} search={search} />
+              <CatColumn name="Mia" typeFilter={typeFilter} search={search} />
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginTop: "48px", textAlign: "center", fontSize: "11px", color: "#1E293B" }}>
+          Pan &amp; Mia · Health Monitor · {new Date().getFullYear()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
