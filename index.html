@@ -59,6 +59,16 @@
 <script type="text/babel">
 const { useState, useMemo } = React;
 
+function useIsMobile() {
+  const [mobile, setMobile] = React.useState(window.innerWidth < 640);
+  React.useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 640);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+  return mobile;
+}
+
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 const panEvents = [
@@ -372,6 +382,7 @@ function TimelineEvent({ event, isLast }) {
 // ─── CatColumn ───────────────────────────────────────────────────────────────
 
 function CatColumn({ name, typeFilter, search }) {
+  const isMobile = useIsMobile();
   const cfg    = catConfig[name];
   const events = name === "Pan" ? panEvents : miaEvents;
   const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() + 3);
@@ -399,13 +410,13 @@ function CatColumn({ name, typeFilter, search }) {
       <div style={{
         background: "#0F172A", border: `1px solid ${cfg.color}44`,
         borderRadius: "14px", marginBottom: "18px",
-        display: "flex", overflow: "hidden",
+        display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden",
       }}>
-        {/* Portrait photo — left, full card height */}
-        <div style={{ width: "50%", flexShrink: 0, background: cfg.color + "11" }}>
+        {/* Portrait photo — left (desktop) / top (mobile) */}
+        <div style={{ width: isMobile ? "100%" : "50%", flexShrink: 0, background: cfg.color + "11" }}>
           <img
             src={cfg.photo} alt={name}
-            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }}
+            style={{ width: "100%", height: isMobile ? "220px" : "100%", objectFit: "cover", objectPosition: "top center", display: "block" }}
             onError={e => { e.target.style.display = "none"; }}
           />
         </div>
@@ -514,10 +525,11 @@ function WeightChart({ name }) {
 // ─── Overview panel ───────────────────────────────────────────────────────────
 
 function Overview() {
+  const isMobile = useIsMobile();
   return (
     <div>
       {/* 2-col overview cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
         {["Pan", "Mia"].map(name => {
           const cfg  = catConfig[name];
           const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() + 3);
@@ -594,6 +606,7 @@ function Overview() {
 // ─── About ───────────────────────────────────────────────────────────────────
 
 function About() {
+  const isMobile = useIsMobile();
   const panTraits = [
     { icon: "😤", label: "Shy at first",         note: "Warms up once comfortable — loves a warm lap once he trusts you." },
     { icon: "🫦", label: "Light nipper",          note: "99% attention-seeking, rarely fear. A warning nip means he's done — respect it." },
@@ -614,7 +627,7 @@ function About() {
   ];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "24px" }}>
       {[
         {
           name: "Pan", traits: panTraits,
@@ -656,9 +669,9 @@ function About() {
         ];
         return (
           <div key={name} style={{ background: "#0F172A", border: `1px solid ${cfg.color}44`, borderRadius: "14px", overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "stretch" }}>
-              <div style={{ width: "50%", flexShrink: 0 }}>
-                <img src={cfg.photo2 || cfg.photo} alt={name} onError={e => e.target.style.display="none"} style={{ width: "100%", height: "260px", objectFit: "cover", objectPosition: "top", display: "block" }} />
+            <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "stretch" }}>
+              <div style={{ width: isMobile ? "100%" : "50%", flexShrink: 0 }}>
+                <img src={cfg.photo2 || cfg.photo} alt={name} onError={e => e.target.style.display="none"} style={{ width: "100%", height: isMobile ? "200px" : "260px", objectFit: "cover", objectPosition: "top", display: "block" }} />
               </div>
               <div style={{ padding: "22px", display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
                 <div style={{ fontSize: "28px", fontWeight: 700, color: cfg.color, marginBottom: "14px" }}>{cfg.emoji} {name}</div>
@@ -713,6 +726,7 @@ function About() {
 // ─── PetSitter ────────────────────────────────────────────────────────────────
 
 function PetSitter() {
+  const isMobile = useIsMobile();
   const schedule = [
     { time: "7:00 AM",  icon: "🍽️", label: "Wet Food",  color: "#10B981", detail: "2 bowls · ¼ cup water + ½ brick each · mix until soup-like. Let it sit a moment — they like it warm." },
     { time: "10:00 AM", icon: "🐟", label: "Treats",    color: "#F59E0B", detail: "~16 dried chicken & salmon treats (≈8 each). Hide them around the house — enrichment activity to get them moving." },
@@ -733,7 +747,7 @@ function PetSitter() {
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
 
       {/* Photo strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: "12px" }}>
         {["./PanMia.jpg", "./PanMia1.jpg", "./PanMia2.jpg", "./PanMia3.jpg"].map((src, i) => (
           <div key={i} style={{ borderRadius: "12px", overflow: "hidden", aspectRatio: "1 / 1" }}>
             <img
@@ -750,7 +764,7 @@ function PetSitter() {
         <div style={{ fontSize: "12px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "20px" }}>
           🕐 Daily Feeding Schedule
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "14px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: "14px" }}>
           {schedule.map((s, i) => (
             <div key={i} style={{ background: "#020817", borderRadius: "10px", padding: "18px", borderTop: `3px solid ${s.color}` }}>
               <div style={{ fontSize: "26px", marginBottom: "10px" }}>{s.icon}</div>
@@ -767,7 +781,7 @@ function PetSitter() {
         <div style={{ fontSize: "12px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "16px" }}>
           🥩 Wet Food Prep
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: "12px" }}>
           {[
             { label: "Per bowl",    value: "¼ cup water + ½ brick", note: "Mix to a soup-like consistency" },
             { label: "Bowls",       value: "2 separate bowls",       note: "One each — Pan always waits for Mia" },
@@ -974,6 +988,7 @@ const vetContext = {
 };
 
 function Labs() {
+  const isMobile = useIsMobile();
   const [panel, setPanel] = useState("cbc");
   const [tip, setTip] = useState(null);
   return (
@@ -998,7 +1013,7 @@ function Labs() {
         );
       })()}
       {/* Flag summaries */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
         {["Pan", "Mia"].map(name => {
           const cfg   = catConfig[name];
           const items = [
@@ -1060,7 +1075,7 @@ function Labs() {
       </div>
 
       {/* Per-cat tables with date columns */}
-      <div style={{ display: "flex", flexDirection: "row", gap: "20px", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: "20px", alignItems: "flex-start" }}>
         {["Pan", "Mia"].map(name => {
           const cfg   = catConfig[name];
           const items = labData[name][panel] || [];
@@ -1211,13 +1226,14 @@ function Labs() {
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 function App() {
+  const isMobile = useIsMobile();
   const [view,       setView]       = useState("timeline");
   const [typeFilter, setTypeFilter] = useState("All");
   const [search,     setSearch]     = useState("");
 
   const navBtn = (id, label) => (
     <button onClick={() => setView(id)} style={{
-      padding: "7px 16px", borderRadius: "8px", border: "none",
+      padding: isMobile ? "10px 12px" : "7px 16px", borderRadius: "8px", border: "none",
       background: view === id ? "#1E293B" : "transparent",
       color: view === id ? "#F1F5F9" : "#94A3B8",
       fontSize: "13px", fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
@@ -1225,12 +1241,12 @@ function App() {
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: "#020817", padding: "32px 40px" }}>
+    <div style={{ minHeight: "100vh", background: "#020817", padding: isMobile ? "16px 12px" : "32px 40px" }}>
       <div style={{ maxWidth: "1500px", margin: "0 auto" }}>
 
         {/* ── Header ── */}
         <div style={{ marginBottom: "28px" }}>
-<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
+<div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
             <div>
               <h1 style={{ fontSize: "32px", fontWeight: 700, color: "#F8FAFC", lineHeight: 1.2 }}>
                 Pan &amp; Mia · Health Monitor
@@ -1241,7 +1257,7 @@ function App() {
                 <span style={{ fontSize: "13px", color: "#94A3B8" }}>· Leanne Woodmass</span>
               </div>
             </div>
-            <div style={{ display: "flex", gap: "4px", background: "#0F172A", borderRadius: "10px", padding: "4px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", background: "#0F172A", borderRadius: "10px", padding: "4px" }}>
               {navBtn("overview",  "📊 Overview")}
               {navBtn("timeline",  "📅 Timeline")}
               {navBtn("labs",      "🧪 Labs")}
@@ -1281,7 +1297,7 @@ function App() {
                   background: "#0F172A", border: "1px solid #1E293B",
                   borderRadius: "8px", padding: "7px 12px", color: "#F1F5F9",
                   fontSize: "14px", outline: "none", fontFamily: "Georgia, serif",
-                  width: "180px",
+                  width: isMobile ? "100%" : "180px",
                 }}
                 onFocus={e => e.target.style.borderColor = "#94A3B8"}
                 onBlur={e => e.target.style.borderColor = "#1E293B"}
@@ -1292,7 +1308,7 @@ function App() {
                 const color  = t === "All" ? "#94A3B8" : typeConfig[t].color;
                 return (
                   <button key={t} onClick={() => setTypeFilter(t)} style={{
-                    padding: "5px 11px", borderRadius: "20px", border: "1px solid",
+                    padding: isMobile ? "8px 14px" : "5px 11px", borderRadius: "20px", border: "1px solid",
                     borderColor: active ? color : "#1E293B",
                     background: active ? color + "22" : "transparent",
                     color: active ? color : "#94A3B8",
@@ -1305,7 +1321,7 @@ function App() {
             </div>
 
             {/* 2-column timeline */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "24px", alignItems: "start" }}>
               <CatColumn name="Pan" typeFilter={typeFilter} search={search} />
               <CatColumn name="Mia" typeFilter={typeFilter} search={search} />
             </div>
