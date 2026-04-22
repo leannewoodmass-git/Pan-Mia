@@ -613,12 +613,22 @@ function Overview() {
 
 // ─── About ───────────────────────────────────────────────────────────────────
 
+function calcAge(dobStr) {
+  const dob = new Date(dobStr);
+  const now = new Date();
+  let y = now.getFullYear() - dob.getFullYear();
+  let m = now.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) { y--; m += 12; }
+  if (now.getDate() < dob.getDate()) m = (m - 1 + 12) % 12;
+  return y > 0 ? `${y}y ${m}m` : `${m}m`;
+}
+
 function About() {
   const isMobile = useIsMobile();
   const panTraits = [
     { icon: "😤", label: "Shy at first",         note: "Warms up once comfortable — loves a warm lap once he trusts you." },
     { icon: "🫦", label: "Light nipper",          note: "99% attention-seeking, rarely fear. A warning nip means he's done — respect it." },
-    { icon: "🔇", label: "Hates loud noises",     note: "Also dislikes shoes. Calm pats or treats downstairs will settle him." },
+    { icon: "🔇", label: "Hates loud noises",     note: "Also dislikes shoes. He's actually quite the scaredy cat. Will meow at closed doors." },
     { icon: "🪮", label: "Loves neck brushing",   note: "Under chin & neck only — never belly, lower back or tail." },
     { icon: "🖐️", label: "Pat: head to shoulders", note: "Never bottom, tail or belly. If he doesn't want to be held he'll warn-nip." },
     { icon: "🚪", label: "House protector",       note: "Will meow at the front door if he senses trouble. Treats + calm pats help." },
@@ -639,20 +649,20 @@ function About() {
       {[
         {
           name: "Pan", traits: panTraits,
-          note: "Pan will let Mia eat first, then he eats. Don't be concerned if they ignore food immediately — they like to let it warm up.",
+          note: "Pan loves to sleep on his leaf or a lap on the couch once he's comfortable.",
           fullNotes: [
             "Pan can be shy at first, but does love having company around or a warm lap to sit on once he's comfortable.",
             "He can be a grumpy old man at times and can lightly nip/bite if he's scared/annoyed or wants attention (99% of the time this is why he nips — attention). Pan doesn't like shoes or loud noises.",
             "Pan enjoys playing, but only a little these days. He'll just watch Mia run around like crazy.",
             "He LOVES being brushed around his neck or under his chin, which is always welcomed, but not his belly or lower back/tail.",
-            "Pan likes to be patted on his head to shoulders, but never his bottom, tail or belly.",
+            "Pan likes to be pat on his head to shoulders, but never his bottom, tail or belly.",
             "He isn't a huge fan of being picked up or held. Hold his feet and don't touch his belly. If he doesn't want to be held, he'll give you a warning nip.",
             "Pan is the protector of the house and will meow at the front door if he sees trouble. Sitting with him downstairs, a calming pat or a distraction with treats works to settle him down.",
           ],
         },
         {
           name: "Mia", traits: miaTraits,
-          note: "Mia will tolerate being held but will likely jump away to play. Not a lap cat, but she'll never leave you alone.",
+          note: "Mia is treat motivated & will harass you in the morning until she gets them.",
           fullNotes: [
             "Mia is also shy at first with new people, but warms up quickly, especially if you play with her or give her treats.",
             "Mia LOVES to play with any toys. The two will play fight with each other but it never gets serious so don't worry about them.",
@@ -668,7 +678,7 @@ function About() {
         const cfg = catConfig[name];
         const altered = cfg.neutered ? `Neutered · ${cfg.neutered}` : cfg.spayed ? `Spayed · ${cfg.spayed}` : null;
         const profileRows = [
-          { label: "DOB",       value: cfg.dob },
+          { label: "DOB",       value: `${cfg.dob} · ${calcAge(cfg.dob)}` },
           { label: "Sex",       value: cfg.sex },
           { label: "Breed",     value: cfg.breed },
           { label: "Coat",      value: cfg.coat },
