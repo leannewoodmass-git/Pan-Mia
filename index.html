@@ -658,6 +658,7 @@ function About() {
             "Pan likes to be pat on his head to shoulders, but never his bottom, tail or belly.",
             "He isn't a huge fan of being picked up or held. Hold his feet and don't touch his belly. If he doesn't want to be held, he'll give you a warning nip.",
             "Pan is the protector of the house and will meow at the front door if he sees trouble. Sitting with him downstairs, a calming pat or a distraction with treats works to settle him down.",
+            "Pan does enjoy sleeping with humans at night (if you want) and will tuck in under your arm or beside your head. However they are disruptive by playing at 2am, loud licking of each other, and waking at 5am with the birds!!! This is why they have their own room.",
           ],
         },
         {
@@ -747,7 +748,7 @@ function PetSitter() {
   const isMobile = useIsMobile();
   const schedule = [
     { time: "7:00 AM",  icon: "🍽️", label: "Wet Food",  color: "#10B981", detail: "1 bowl · 100g Hound Origin Chicken Classic · 2 × ¼ cup water · mix until soup-like. They wait until it's warmed up to eat. Can be left out for 12hrs in aircon." },
-    { time: "10:00 AM", icon: "🐟", label: "Treats",    color: "#F59E0B", detail: "~16 dried chicken treats (≈8 each). Hide them around the house — enrichment activity to get them moving." },
+    { time: "8:00 AM", icon: "🐟", label: "Treats",    color: "#F59E0B", detail: "~16 dried chicken treats (≈8 each). Hide them around the house — enrichment activity to get them moving." },
     { time: "5:00 PM",  icon: "🍽️", label: "Wet Food",  color: "#10B981", detail: "Same as morning — 1 bowl · 100g Hound Origin Chicken Classic · 2 × ¼ cup water. Pan eats after Mia — totally normal, don't intervene." },
     { time: "Bedtime",  icon: "🍗", label: "Treats",    color: "#8B5CF6", detail: "1 × chicken heart each. Their nightcap before lights out. Any leftover wet food goes with them to bed — they'll eat it overnight." },
   ];
@@ -799,11 +800,18 @@ function PetSitter() {
         <div style={{ fontSize: "12px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "16px" }}>
           🥩 Wet Food Prep
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px", background: "#020817", borderRadius: "10px", padding: "12px 16px" }}>
-          <img src="https://static.wixstatic.com/media/376a76_00b36059cd18400ca3bcd40cd747952b~mv2.png" alt="Hound Origin Chicken Classic pouch" style={{ width: "72px", height: "72px", objectFit: "contain", borderRadius: "6px" }} />
-          <div>
-            <div style={{ fontSize: "14px", fontWeight: 700, color: "#F1F5F9" }}>Hound Origin — Wild Cat Chicken Classic</div>
-            <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "2px" }}>200g pouch · 100g per serve · 2 × ¼ cup water</div>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "#020817", borderRadius: "10px", padding: "12px 16px" }}>
+            <img src="https://static.wixstatic.com/media/376a76_00b36059cd18400ca3bcd40cd747952b~mv2.png" alt="Hound Origin Chicken Classic pouch" style={{ width: "72px", height: "72px", objectFit: "contain", borderRadius: "6px" }} />
+            <div>
+              <div style={{ fontSize: "14px", fontWeight: 700, color: "#F1F5F9" }}>Hound Origin — Wild Cat Chicken Classic</div>
+              <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "2px" }}>200g pouch · 100g per serve · 2 × ¼ cup water</div>
+            </div>
+          </div>
+          <div style={{ background: "#020817", borderRadius: "10px", padding: "12px 16px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ fontSize: "11px", color: "#94A3B8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Diet type</div>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: "#10B981", marginTop: "3px" }}>BARF only</div>
+            <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "4px", lineHeight: 1.5 }}>No kibble, veggies, grains or people food</div>
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: "12px" }}>
@@ -812,7 +820,6 @@ function PetSitter() {
             { label: "Per bowl",    value: "100g + 2 × ¼ cup water", note: "Mix to a soup-like consistency" },
             { label: "Bowl",        value: "1 shared bowl",           note: "Pan always waits for Mia — that's normal" },
             { label: "Temperature", value: "Let it warm up",         note: "They'll ignore cold food at first" },
-            { label: "Diet type",   value: "BARF only",              note: "No kibble, veggies, grains or people food" },
           ].map((item, i) => (
             <div key={i} style={{ background: "#020817", borderRadius: "8px", padding: "12px 14px" }}>
               <div style={{ fontSize: "11px", color: "#94A3B8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{item.label}</div>
